@@ -18,6 +18,9 @@ import { openTagEditor, savedTagCanvas } from './tageditor.js';
 import { initCheats } from './cheats.js';
 import { initStory } from './story.js';
 // [v3-jury] end
+// [v3-decor] begin
+import { initDecor } from './decor.js';
+// [v3-decor] end
 import '@fontsource/press-start-2p/cyrillic-400.css';
 import '@fontsource/press-start-2p/latin-400.css';
 
@@ -376,6 +379,9 @@ function updateZones(t) {
 jury.cheats = initCheats({ war, player, traffic, hud });
 jury.story = initStory({ renderer, scene, camera, retro, player, hud });
 // [v3-jury] end
+// [v3-decor] begin
+const decor = initDecor({ scene, colliders, walls, districts, fx, hud, war, state, camera, input, player, getVehicle: () => vehicle, getWeapon: () => arsenal.current });
+// [v3-decor] end
 const clock = new THREE.Clock();
 let mapTimer = 0, elapsed = 0;
 updateCamera(0, true);
@@ -388,6 +394,7 @@ function frame() {
     if (state.deadT <= 0) respawn();
   }
   fx.update(dt);
+  decor.update(dt); // [v3-decor]
   updateZones(elapsed);
   updateCamera(dt);
   mapTimer -= dt;
