@@ -17,6 +17,7 @@ import { RetroPass, RENDER_SCALE } from './retro.js';
 import { openTagEditor, savedTagCanvas } from './tageditor.js';
 import { initCheats } from './cheats.js';
 import { initStory } from './story.js';
+import { Fns } from './fns.js'; // [v3-fns]
 // [v3-jury] end
 import '@fontsource/press-start-2p/cyrillic-400.css';
 import '@fontsource/press-start-2p/latin-400.css';
@@ -347,6 +348,7 @@ function step(dt) {
     hud.showDistrict(here.name, BANKS[here.owner].css); // [v3-weapons] название района справа внизу
   }
   traffic.update(dt, [...cars, ...(vehicle ? [] : [player]), ...traffic.cars]);
+  fns.update(dt); // [v3-fns]
   enemies.update(dt, { target: actor.position, targetAlive: true, colliders, hurt });
   war.update(dt, actor.position, true);
 
@@ -372,6 +374,9 @@ function updateZones(t) {
   }
 }
 
+// [v3-fns] begin
+const fns = new Fns({ scene, traffic, war, hud, input, camera, player, colliders, state, getActor: () => vehicle || player, getVehicle: () => vehicle, getWeapon: () => arsenal.current });
+// [v3-fns] end
 // [v3-jury] begin
 jury.cheats = initCheats({ war, player, traffic, hud });
 jury.story = initStory({ renderer, scene, camera, retro, player, hud });
@@ -408,5 +413,6 @@ window.__game = {
   get vehicle() { return vehicle; },
   get camYaw() { return camYaw; },
   aim(yaw, pitch = 0) { camYaw = yaw; camPitch = pitch; },
+  fns, // [v3-fns]
   toggleCar, shoot, throwGrenade, cam: camera, renderer, jury,
 };
