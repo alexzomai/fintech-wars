@@ -118,7 +118,7 @@ const target = await g(() => {
 });
 await aimAt(target.x, 1.3, target.z);
 await page.mouse.down();
-await page.waitForTimeout(1500);
+await page.waitForFunction(() => window.__testEnemy.hp < 40, null, { timeout: 15000 }).catch(() => {});
 await page.mouse.up();
 const eh = await g(() => ({ hp: window.__testEnemy.hp, dead: window.__testEnemy.dead }));
 check(eh.dead || eh.hp < 40, `стрельба попадает (hp врага ${eh.hp}${eh.dead ? ', убит' : ''})`);
@@ -142,7 +142,8 @@ await aimAt(tag.x, 2.6, tag.z);
 await page.mouse.down();
 await page.waitForTimeout(1000);
 await shot('3a-spraying');
-await page.waitForTimeout(2500);
+// Ждём событие, а не фиксированное время: под нагрузкой FPS падает и игровое время замедляется.
+await page.waitForFunction(() => window.__tag.owner === 'green', null, { timeout: 20000 }).catch(() => {});
 await page.mouse.up();
 check(await g(() => window.__tag.owner === 'green'), 'тег перекрашен баллончиком в зелёный');
 await page.keyboard.press('Digit1');
