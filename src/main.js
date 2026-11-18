@@ -21,6 +21,7 @@ import { Aircraft } from './aircraft.js'; // [v3-air]
 // [v3-pop] begin
 import { Npcs } from './npc.js';
 import { Allies } from './allies.js';
+import { Sahur } from './sahur.js';
 // [v3-pop] end
 import { RetroPass, RENDER_SCALE } from './retro.js';
 // [v3-jury] begin
@@ -109,10 +110,11 @@ graffiti.place(walls);
 ownerListeners.push((d) => graffiti.onOwnerChange(d));
 const traffic = new Traffic(scene, 14);
 const player = new Player(scene);
-// [v3-pop] begin
+// [v3-pop] begin (war объявлен ниже, onCatch вызывается позже)
 const npcs = new Npcs(scene, { colliders, districts });
 const allies = new Allies(scene, { enemies, npcs, fx, hud, districts, colliders, onKill: (e) => onKill(e) });
 enemies.onShot = (p) => npcs.panic(p, 18);
+const sahur = new Sahur(scene, { hud, onCatch: () => { war.reach += 100; } });
 // [v3-pop] end
 const spawnPoint = () => {
   const d = districts.find((x) => x.owner === 'green' && x.hq) || districts.find((x) => x.owner === 'green') || districts[0];
@@ -162,6 +164,10 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyE') window.__game?.allies?.recruit?.(); // E — действие: позвать амбассадора
   // Q — радио в машине (делает sg-audio), за оружием не закреплено.
   // [v3-weapons] end
+  if (e.code === 'Digit1') setWeapon('pistol');
+  if (e.code === 'Digit2') setWeapon('spray');
+  if (e.code === 'KeyR') throwGrenade();
+  if (e.code === 'KeyE' && !vehicle) sahur.tryCatch(player.position); // [v3-pop]
   if (e.code === 'KeyG' && !vehicle) allies.recruit(player.position, camera.getWorldDirection(new THREE.Vector3())); // [v3-pop]
   if (e.code === 'KeyZ') audio.nextStation(); // [v3-audio]
 });
@@ -408,6 +414,7 @@ function step(dt) {
   // [v3-pop] begin
   npcs.update(dt, { center: actor.position, vehicle, traffic: traffic.cars, budget: 80 - enemies.alive().length - allies.count });
   allies.update(dt, { player, vehicle });
+  sahur.update(dt, { player, camera, vehicle, hurt });
   // [v3-pop] end
   war.update(dt, actor.position, true);
 
@@ -470,6 +477,7 @@ function frame() {
   // [v3-war] begin
   markers.update(state.mode === 'play' ? enemies.alive((e) => e.tag && (e.tag === war.capture?.tag || e.tag === war.counter?.tag)) : [], elapsed, state.mode === 'play' ? war.squads.allies() : []);
   // [v3-war] end
+  camera.position.y += npcs.shake; // [v3-pop] шаги юрлиц
   mapTimer -= dt;
   if (mapTimer <= 0) {
     mapTimer = 0.05;
@@ -497,4 +505,6 @@ window.__game = {
   npcs, allies, // [v3-pop]
   audio, // [v3-audio]
   palych, // [v3-palych]
+  toggleCar, shoot, throwGrenade, cam: camera, renderer,
+  npcs, allies, sahur, // [v3-pop]
 };

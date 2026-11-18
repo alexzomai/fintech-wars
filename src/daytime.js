@@ -25,7 +25,6 @@ function rate(min) {
   return 1;
 }
 
-export function createDaytime(start = 13 * 60) { // день по умолчанию
 export function createDaytime(start = 13 * 60) {
   return {
     minutes: start, // игровые минуты от полуночи (растут без ограничения)
