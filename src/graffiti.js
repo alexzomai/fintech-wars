@@ -5,7 +5,7 @@ import { sfx } from './audio.js'; // [v3-audio]
 // Граффити-теги банков на стенах. Баллончиком (ЛКМ, ~2 с) чужой тег перекрашивается в наш.
 // Теги следуют за сменой владельца района (захват, контратака, ИИ-война).
 
-const TAG_W = 4.2, TAG_H = 2.1, SPRAY_TIME = 2, SPRAY_RANGE = 6;
+const TAG_W = 4.2, TAG_H = 2.1, SPRAY_TIME = 1.2, SPRAY_RANGE = 6;
 
 // Процедурный тег (фолбэк, пока нет PNG от художника).
 function drawTag(bank) {

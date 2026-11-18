@@ -87,10 +87,11 @@ check(Math.hypot(w1.x - w0.x, w1.z - w0.z) > 1, 'персонаж ходит');
 
 // Прыжок пешком: игрок отрывается от земли и приземляется.
 await page.keyboard.press('Space');
-await page.waitForTimeout(150);
-const jy = await g(() => window.__game.player.position.y);
+let jy = 0;
+await page.waitForFunction(() => window.__game.player.position.y > 0.5, null, { timeout: 3000, polling: 16 }).then(() => { jy = 0.51; }).catch(() => {});
+jy = Math.max(jy, await g(() => window.__game.player.position.y));
 check(jy > 0.5, `прыжок на Пробел (высота ${jy.toFixed(2)} м)`);
-await page.waitForTimeout(900);
+await page.waitForFunction(() => window.__game.player.grounded, null, { timeout: 5000 }).catch(() => {});
 check(await g(() => window.__game.player.grounded), 'приземление после прыжка');
 // Запрыгнуть на крышу машины.
 const roof = await g(() => new Promise((resolve) => {
@@ -148,14 +149,29 @@ await page.mouse.up();
 check(await g(() => window.__tag.owner === 'green'), 'тег перекрашен баллончиком в зелёный');
 await page.keyboard.press('Digit1');
 
-// Без половины граффити война не начинается.
+// Правило SA: война стартует, когда перекрашено 2 тега и вырублено 2 промоутера района.
 await g(() => { const c = window.__game; c.player.position.copy(c.districts[1].zone); c.player.position.x += 3; });
 await page.waitForTimeout(500);
-check(await g(() => !window.__game.war.capture), 'без граффити рекламная война не стартует');
-await g(() => { const c = window.__game; c.graffiti.inDistrict(c.districts[1]).forEach((t) => c.graffiti.setTag(t, 'green')); });
-await page.waitForTimeout(500);
-check(await g(() => window.__game.war.capture?.d.k === 1), 'после граффити вход в круг запускает войну');
-let waves = 0, shotWave = false;
+check(await g(() => !window.__game.war.capture), 'без 2 тегов и 2 промоутеров война не стартует');
+await page.waitForFunction(() => /1\/2/.test(document.getElementById('help')?.dataset.t || ''), null, { timeout: 10000 }).catch(() => {});
+const help1 = await g(() => document.getElementById('help')?.dataset.t || '');
+check(/1\/2/.test(help1) && /0\/2/.test(help1), `подсказка прогресса («${help1}»)`);
+await g(() => { const c = window.__game; c.graffiti.inDistrict(c.districts[1]).slice(0, 2).forEach((t) => c.graffiti.setTag(t, 'green')); });
+await page.waitForTimeout(400);
+check(await g(() => !window.__game.war.capture), 'только теги без промоутеров — войны нет');
+// Вырубаем двух промоутеров района (охрану; если её не хватает — ставим своих).
+const hp = await g(() => {
+  const c = window.__game, d = c.districts[1];
+  const guards = c.enemies.alive((e) => e.tag === 'guard:1');
+  while (guards.length < 2) guards.push(c.war.spawnFighter(d.zone.clone(), d.owner, { tag: 'guard:1' }));
+  const hp = guards[0].hp;
+  guards.slice(0, 2).forEach((e) => c.enemies.damage(e, 999));
+  return hp;
+});
+check(hp === 30, `HP промоутера 30 (${hp})`);
+await page.waitForFunction(() => window.__game.war.capture?.d.k === 1, null, { timeout: 5000 }).catch(() => {});
+check(await g(() => window.__game.war.capture?.d.k === 1), '2 тега + 2 промоутера → война стартует сама');
+let waves = 0, shotWave = false, bossHp = 0, spawnD = 0, marks = 0, tp = false;
 for (let i = 0; i < 80; i++) {
   const st = await g(() => {
     const { war, enemies, districts } = window.__game;
@@ -167,15 +183,44 @@ for (let i = 0; i < 80; i++) {
     return 'wait';
   });
   if (st.startsWith('wave')) {
-    waves = Math.max(waves, +st.slice(4));
-    if (waves === 3 && !shotWave) { shotWave = true; await page.waitForTimeout(1500); await shot('3-wave3'); }
+    const w = +st.slice(4);
+    if (w > waves) {
+      waves = w;
+      const info = await g(() => {
+        const { war, enemies, player } = window.__game;
+        const list = enemies.alive((e) => e.tag === war.capture.tag);
+        return { boss: list.find((e) => e.boss)?.hp || 0, d: Math.max(...list.map((e) => e.position.distanceTo(player.position))) };
+      });
+      bossHp = Math.max(bossHp, info.boss); spawnD = Math.max(spawnD, info.d);
+    }
+    if (waves === 1 && !tp) {
+      // Застрявший враг (далеко и не приближается 10 с) телепортируется ближе.
+      await g(() => {
+        const { war, enemies, player } = window.__game, e = enemies.alive((x) => x.tag === war.capture.tag)[0];
+        window.__stuck = e; e.frozen = true;
+        e.position.set(player.position.x + 70, 0, player.position.z); e.bestD = 0; e.stuckT = 9.9;
+      });
+      await page.waitForFunction(() => window.__stuck.position.distanceTo(window.__game.player.position) < 25, null, { timeout: 20000 }).catch(() => {});
+      tp = await g(() => window.__stuck.position.distanceTo(window.__game.player.position) < 25);
+      check(tp, 'застрявший враг телепортирован ближе к игроку');
+      tp = true;
+    }
+    if (waves === 2 && !shotWave) {
+      shotWave = true;
+      await page.waitForTimeout(1500);
+      marks = await g(() => window.__markers.sprites.size);
+      await shot('3-wave2');
+    }
     await g(() => { const { war, enemies } = window.__game; enemies.alive((e) => e.tag === war.capture.tag).forEach((e) => enemies.damage(e, 999)); });
   }
   if (st === 'done' || st === 'none') break;
   await page.waitForTimeout(400);
 }
+check(marks > 0, `красные маркеры над врагами войны (${marks})`);
+check(bossHp === 150, `HP директора 150 (${bossHp})`);
+check(spawnD > 0 && spawnD < 40, `волна появляется рядом с игроком (до ${spawnD.toFixed(0)} м)`);
 const owner = await g(() => window.__game.districts[1].owner);
-check(owner === 'green' && waves === 3, `3 волны → район перекрашен (владелец ${owner}, волн ${waves})`);
+check(owner === 'green' && waves === 2, `2 волны → район перекрашен (владелец ${owner}, волн ${waves})`);
 const score = await g(() => window.__game.war.count('green'));
 check(score === 3, `счёт районов обновился (🟢 ${score})`);
 await page.waitForTimeout(600);
@@ -219,7 +264,7 @@ check(await g(() => window.__game.player.hp === 100), 'возрождение в
 
 // Конец матча по таймеру.
 await g(() => { window.__game.war.time = 0.2; });
-await page.waitForTimeout(800);
+await page.waitForFunction(() => !document.getElementById('end').classList.contains('hidden'), null, { timeout: 10000 }).catch(() => {});
 const end = await g(() => ({ shown: !document.getElementById('end').classList.contains('hidden'), title: document.getElementById('endTitle').textContent, text: document.getElementById('endText').textContent }));
 check(end.shown, `финальный экран: ${end.title} — ${end.text}`);
 await shot('7-end');

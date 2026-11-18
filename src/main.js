@@ -10,6 +10,8 @@ import { initProps } from './props.js';
 // [v3-models] end
 import { Enemies } from './enemies.js';
 import { War } from './war.js';
+import { Markers } from './markers.js'; // [v3-war]
+import { Squads } from './squads.js'; // [v3-war]
 import { Fx } from './fx.js';
 import { Hud } from './hud.js';
 // [v3-weapons] begin
@@ -107,21 +109,6 @@ const spawnPoint = () => {
 const cars = [new Car(scene, spawnPoint())]; // машины, в которые можно сесть
 let vehicle = cars[0];
 
-// Маркеры точек захвата: кольцо + столб света в цвете владельца.
-const zoneMarkers = districts.map((d) => {
-  const mat = new THREE.MeshBasicMaterial({ color: BANKS[d.owner].color, transparent: true, opacity: 0.35, depthWrite: false });
-  const g = new THREE.Group();
-  const beam = new THREE.Mesh(new THREE.CylinderGeometry(12, 12, 60, 32, 1, true), mat);
-  beam.position.y = 30;
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(12, 0.35, 8, 48), new THREE.MeshBasicMaterial({ color: BANKS[d.owner].color }));
-  ring.rotation.x = Math.PI / 2;
-  ring.position.y = 0.3;
-  g.add(beam, ring);
-  g.position.copy(d.zone);
-  scene.add(g);
-  return { d, beam, ring, mat };
-});
-
 const state = { mode: 'menu', deadT: 0, timeScale: 1 };
 const stunts = new Stunts(scene, state);
 const war = new War({
@@ -129,6 +116,12 @@ const war = new War({
   onWin: (kind) => endGame(kind),
   onLose: () => endGame('lose'),
 });
+// [v3-war] begin
+war.camera = camera; // телепорт застрявших врагов — вне кадра
+const markers = new Markers(scene, camera);
+window.__markers = markers;
+war.squads = new Squads({ scene, war, enemies, graffiti, hud, fx, colliders });
+// [v3-war] end
 
 // --- Ввод ---
 const input = { up: false, down: false, left: false, right: false, brake: false, run: false, fire: false };
@@ -406,17 +399,6 @@ function step(dt) {
     : arsenal.hint()); // [v3-weapons]
 }
 
-function updateZones(t) {
-  for (const z of zoneMarkers) {
-    const col = BANKS[z.d.owner].color;
-    z.mat.color.set(col);
-    z.ring.material.color.set(col);
-    const active = war.capture?.d === z.d || war.counter?.d === z.d;
-    z.beam.visible = z.d.owner !== 'green' || active;
-    z.mat.opacity = active ? 0.25 + 0.15 * Math.sin(t * 8) : 0.3;
-  }
-}
-
 // [v3-jury] begin
 jury.cheats = initCheats({ war, player, traffic, hud });
 jury.story = initStory({ renderer, scene, camera, retro, player, hud });
@@ -433,12 +415,15 @@ function frame() {
     if (state.deadT <= 0) respawn();
   }
   fx.update(dt);
-  updateZones(elapsed);
   updateCamera(dt);
+  // [v3-war] begin
+  markers.update(state.mode === 'play' ? enemies.alive((e) => e.tag && (e.tag === war.capture?.tag || e.tag === war.counter?.tag)) : [], elapsed, state.mode === 'play' ? war.squads.allies() : []);
+  // [v3-war] end
   mapTimer -= dt;
   if (mapTimer <= 0) {
     mapTimer = 0.05;
     hud.drawMap((vehicle || player).position, camYaw, colliders, districts, enemies.list, war.target, graffiti.tags);
+    war.squads.drawRadar(hud.map, (vehicle || player).position, camYaw); // [v3-war]
   }
   neon.update(dt); pause.update(dt); // [v3-neon]
   retro.render(scene, camera);
