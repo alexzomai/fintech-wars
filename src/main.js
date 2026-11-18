@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { buildCity, CELL, BANKS, rayBoxes, resolveCircle, districtAt, ownerListeners } from './city.js';
 import { Graffiti } from './graffiti.js';
+import { Stunts } from './stunts.js';
 import { Car } from './car.js';
 import { Player } from './player.js';
 import { Traffic } from './traffic.js';
@@ -91,7 +92,8 @@ const zoneMarkers = districts.map((d) => {
   return { d, beam, ring, mat };
 });
 
-const state = { mode: 'menu', deadT: 0 };
+const state = { mode: 'menu', deadT: 0, timeScale: 1 };
+const stunts = new Stunts(scene, state);
 const war = new War({
   districts, enemies, hud, graffiti,
   onWin: (kind) => endGame(kind),
@@ -352,6 +354,7 @@ function step(dt) {
         e.position.addScaledVector(_v.normalize(), vehicle.radius + e.radius - d);
       }
     }
+    stunts.update(dt, vehicle, () => { war.reach += 15; war.addMoney(200); });
   } else {
     player.update(dt, input, camYaw, colliders, cars, { aiming: input.fire && weapon === 'pistol', spraying: input.fire && weapon === 'spray', aimPitch: camPitch });
     traffic.collide(player);
@@ -407,7 +410,7 @@ const clock = new THREE.Clock();
 let mapTimer = 0, elapsed = 0;
 updateCamera(0, true);
 function frame() {
-  const dt = Math.min(clock.getDelta(), 0.05);
+  const dt = Math.min(clock.getDelta(), 0.05) * (state.timeScale ?? 1);
   elapsed += dt;
   if (state.mode === 'play') step(dt);
   else if (state.mode === 'dead') {
@@ -429,7 +432,7 @@ frame();
 
 // Хук для автотестов и отладки.
 window.__game = {
-  colliders, districts, enemies, traffic, war, player, cars, input, state, hurt, fx, graffiti,
+  colliders, districts, enemies, traffic, war, player, cars, input, state, hurt, fx, graffiti, stunts,
   get weapon() { return weapon; },
   get vehicle() { return vehicle; },
   get camYaw() { return camYaw; },

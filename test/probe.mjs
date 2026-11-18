@@ -1,4 +1,4 @@
-// Отладка баллончика: куда смотрит камера и попадает ли луч в тег.
+// Отладка трамплина: траектория машины.
 import { chromium } from 'playwright-core';
 const browser = await chromium.launch({ executablePath: '/usr/bin/chromium', args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
@@ -6,12 +6,9 @@ page.on('pageerror', (e) => console.log('ERR', String(e)));
 await page.goto('http://127.0.0.1:5317/');
 await page.waitForFunction(() => window.__game);
 await page.click('#play');
-await page.evaluate(() => { const c = window.__game; c.state.god = true; c.vehicle.speed = 0; c.toggleCar(); });
-const g = (f, a) => page.evaluate(f, a);
-const t = await g(() => { const c = window.__game, t = c.graffiti.tags.find((x) => x.d.k === 1 && x.owner === 'red'); window.__tag = t; c.player.position.copy(t.pos).addScaledVector(t.normal, 2.5).setY(0); return { x: t.pos.x, z: t.pos.z, n: [t.normal.x, t.normal.z] }; });
-for (let i = 0; i < 4; i++) {
-  await page.waitForTimeout(200);
-  console.log(JSON.stringify(await g(([x, z]) => { const c = window.__game, cam = c.cam; const dx = x - cam.position.x, dy = 2.6 - cam.position.y, dz = z - cam.position.z; c.aim(Math.atan2(dx, dz), Math.atan2(dy, Math.hypot(dx, dz))); const p = c.player.position; return { cam: [cam.position.x.toFixed(2), cam.position.y.toFixed(2), cam.position.z.toFixed(2)], player: [p.x.toFixed(2), p.y.toFixed(2), p.z.toFixed(2)], yaw: c.camYaw.toFixed(3) }; }, [t.x, t.z])));
+await page.evaluate(() => { const c = window.__game, r = c.stunts.ramps[0], v = c.vehicle; window.__r = r; v.position.set(r.x - r.dir[0] * 25, 0, r.z - r.dir[1] * 25); v.heading = Math.atan2(r.dir[0], r.dir[1]); v.speed = 32; });
+for (let i = 0; i < 10; i++) {
+  await page.waitForTimeout(150);
+  console.log(JSON.stringify(await page.evaluate(() => { const v = window.__game.vehicle, r = window.__r; return { x: v.position.x.toFixed(1), y: v.position.y.toFixed(2), z: v.position.z.toFixed(1), sp: v.speed.toFixed(1), h: v.heading.toFixed(2), air: v.airborne, rx: r.x, rz: r.z, mode: window.__game.state.mode }; })));
 }
-console.log(JSON.stringify(t));
 await browser.close();

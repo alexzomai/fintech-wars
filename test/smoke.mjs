@@ -55,6 +55,27 @@ const sp = await g(() => window.__game.vehicle.speed);
 check(sp > 6, `машина едет (${(sp * 3.6).toFixed(0)} км/ч)`);
 await hold('Space', 1500);
 
+// Трамплин: разгоняемся к первому трамплину — полёт, замедление, «ВИРУСНЫЙ РОЛИК».
+await g(() => {
+  const c = window.__game, r = c.stunts.ramps[0], v = c.vehicle;
+  v.position.set(r.x - r.dir[0] * 14, 0, r.z - r.dir[1] * 14);
+  v.heading = Math.atan2(r.dir[0], r.dir[1]);
+  v.speed = 34;
+});
+await page.keyboard.down('KeyW'); // газ в пол, как живой игрок
+await page.waitForFunction(() => window.__game.vehicle.airborne, null, { timeout: 8000 }).catch(() => {});
+await page.keyboard.up('KeyW');
+const air = await g(() => ({ air: window.__game.vehicle.airborne, ts: window.__game.state.timeScale, y: window.__game.vehicle.position.y }));
+check(air.air && air.ts < 1, `трамплин: полёт с замедлением (y=${air.y.toFixed(1)}, timeScale=${air.ts})`);
+await page.waitForTimeout(600);
+await shot('1a-stunt-air');
+await page.waitForFunction(() => window.__game.stunts.done > 0, null, { timeout: 15000 }).catch(() => {});
+const st = await g(() => ({ done: window.__game.stunts.done, text: document.getElementById('stunt').textContent, ts: window.__game.state.timeScale }));
+check(st.done === 1 && st.text.includes('ВИРУСНЫЙ РОЛИК') && st.ts === 1, `приземление: «${st.text}»`);
+await page.waitForTimeout(300);
+await shot('1b-stunt-landed');
+await g(() => { window.__game.vehicle.speed = 0; });
+
 // Выход и ходьба.
 await g(() => { window.__game.vehicle.speed = 0; });
 await page.keyboard.press('KeyF');
@@ -108,6 +129,10 @@ const tag = await g(() => {
   const c = window.__game, t = c.graffiti.tags.find((x) => x.d.k === 1 && x.owner === 'red');
   window.__tag = t;
   c.player.position.copy(t.pos).addScaledVector(t.normal, 2.5).setY(0);
+  // Трафик рядом убираем: NPC-машина может столкнуть игрока от стены.
+  const near = (x) => x.mesh.position.distanceTo(t.pos) < 50;
+  c.traffic.cars.filter(near).forEach((x) => { x.mesh.visible = false; });
+  c.traffic.cars = c.traffic.cars.filter((x) => !near(x));
   return { x: t.pos.x, z: t.pos.z, total: c.graffiti.inDistrict(t.d).length };
 });
 check(tag.total >= 4, `в районе есть теги конкурента (${tag.total})`);

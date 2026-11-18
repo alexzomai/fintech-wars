@@ -37,6 +37,15 @@ export class Car {
     this.heading = heading;
     this.speed = 0;
     this.radius = 1.9;
+    this.vy = 0;
+    this.airborne = false;
+    this.mesh.rotation.order = 'YXZ'; // курс, затем тангаж в локальных осях
+  }
+
+  // Прыжок с трамплина: вертикальная скорость, горизонтальная сохраняется.
+  launch(vy) {
+    this.vy = vy;
+    this.airborne = true;
   }
 
   get position() { return this.mesh.position; }
@@ -53,6 +62,20 @@ export class Car {
     if (!input || (!input.up && !input.down)) this.speed -= Math.sign(this.speed) * Math.min(Math.abs(this.speed), 4 * dt);
     this.speed = Math.max(REV, Math.min(MAX, this.speed));
 
+    if (this.airborne) {
+      // Полёт: без управления, гравитация, нос плавно опускается.
+      this.vy -= 22 * dt;
+      this.mesh.position.y += this.vy * dt;
+      this.mesh.rotation.x = Math.max(-0.5, Math.min(0.35, -this.vy * 0.03));
+      if (this.mesh.position.y <= 0) {
+        this.mesh.position.y = 0;
+        this.vy = 0;
+        this.airborne = false;
+        this.mesh.rotation.x = 0;
+        this.speed *= 0.85;
+      }
+      input = null;
+    }
     if (input) {
       const steer = (input.left ? 1 : 0) - (input.right ? 1 : 0);
       const grip = Math.min(1, Math.abs(this.speed) / 8) * Math.sign(this.speed);
@@ -62,7 +85,7 @@ export class Car {
     const p = this.mesh.position;
     p.x += Math.sin(this.heading) * this.speed * dt;
     p.z += Math.cos(this.heading) * this.speed * dt;
-    if (resolveCircle(p, this.radius, colliders)) {
+    if (resolveCircle(p, this.radius, colliders, p.y)) {
       this.speed *= -0.3;
     }
     this.mesh.rotation.y = this.heading;
