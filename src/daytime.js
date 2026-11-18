@@ -9,7 +9,7 @@ export function nightLevel(min) {
   return 1 - smooth(4.5 * 60, 6.5 * 60, m);
 }
 
-export function createDaytime(start = 18 * 60 + 30) {
+export function createDaytime(start = 13 * 60) { // день по умолчанию
   return {
     minutes: start, // игровые минуты от полуночи (растут без ограничения, по модулю — время суток)
     played: 0, // реальные секунды в игре

@@ -4,7 +4,7 @@ import { roadCoord, N } from './city.js';
 // Уникальные прыжки: трамплины на дорогах. Въехал на скорости — полёт с замедлением,
 // кинокамерой сбоку и надписью «ВИРУСНЫЙ РОЛИК! N млн просмотров · Охваты +».
 
-const LEN = 9, WIDTH = 6, HEIGHT = 1.8, MIN_SPEED = 14;
+const LEN = 9, WIDTH = 6, HEIGHT = 1.8, MIN_SPEED = 11; // ~40 км/ч
 
 export class Stunts {
   constructor(scene, state) {
@@ -78,10 +78,13 @@ export class Stunts {
       const dx = car.position.x - r.x, dz = car.position.z - r.z;
       const along = dx * r.dir[0] + dz * r.dir[1] + LEN / 2; // 0 у основания, LEN у кромки
       const lateral = Math.abs(dx * r.dir[1] - dz * r.dir[0]);
-      if (lateral > WIDTH / 2 || along < 0 || along > LEN) continue;
+      if (lateral > WIDTH / 2 + 1.5 || along < 0 || along > LEN + 2) continue;
       const vAlong = car.speed * (Math.sin(car.heading) * r.dir[0] + Math.cos(car.heading) * r.dir[1]);
       car.position.y = (along / LEN) * HEIGHT;
-      if (along > LEN * 0.85 && vAlong > MIN_SPEED) {
+      // Кромку проверяем по пересечению между кадрами: при низком FPS машина перескакивает узкое окно.
+      const prev = this.prevAlong ?? -1;
+      this.prevAlong = along;
+      if ((along > LEN * 0.85 || prev > LEN * 0.5) && vAlong > MIN_SPEED) {
         car.launch(car.speed * 0.32 + 3);
         this.active = { t: 0 };
         this.state.timeScale = 0.35;
