@@ -64,7 +64,7 @@ export function initPauseMenu({ state, districts, war, graffiti, colliders, inpu
     mk('Настройки', () => {
       settings = true;
       neon.toggleNight();
-      note.textContent = `Время суток: ${neon.night ? 'неоновая ночь' : 'закат'} (переключено). В игре: N.`;
+      note.textContent = `Время суток: ${neon.night ? 'ночь' : 'день'} (переключено). В игре: N.`;
     }),
     mk('Выход', () => { note.textContent = 'Из Сити-2049 не уходят. Пока рынок не наш.'; }),
   ];
