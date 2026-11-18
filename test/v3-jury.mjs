@@ -56,7 +56,7 @@ await page.keyboard.type('cashback', { delay: 40 });
 await page.waitForTimeout(400);
 const money1 = await g(() => window.__game.war.money);
 check(money1 - money0 === 5000, `CASHBACK: +$5000 (${money0} → ${money1})`);
-check(await page.locator('#cheatBanner.show').count() === 1, 'баннер «ЧИТ АКТИВИРОВАН»');
+check((await page.locator('#subtitle.show').textContent()).includes('ЧИТ АКТИВИРОВАН'), 'субтитр «ЧИТ АКТИВИРОВАН»');
 await shot('jury-3-cheat');
 await page.keyboard.type('ipo', { delay: 40 });
 check(await g(() => window.__game.war.money) - money1 === 1000, 'IPO: +$1000');
@@ -66,7 +66,7 @@ await page.waitForTimeout(800);
 const p1 = await g(() => window.__game.traffic.cars.map((c) => c.mesh.position.x + c.mesh.position.z));
 check(p0.every((v, i) => v === p1[i]), 'SANCTIONS: трафик стоит');
 await page.keyboard.type('keyrate', { delay: 40 });
-check((await page.locator('#toast').textContent()).includes('Розыск сброшен'), 'KEYRATE: тост');
+check(await g(() => window.__game.hud.ch.subtitle.log.some((t) => t.includes('Розыск сброшен'))), 'KEYRATE: субтитр');
 
 // Сторис.
 await page.keyboard.press('KeyP');

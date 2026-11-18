@@ -154,9 +154,10 @@ addEventListener('keydown', (e) => {
   if ((e.code === 'ControlLeft' || e.code === 'ControlRight') && !vehicle) { e.preventDefault(); player.roll(); }
   // [v3-weapons] begin
   if (/^Digit[1-9]$/.test(e.code)) arsenal.selectSlot(+e.code.slice(5));
-  if (e.code === 'KeyQ') arsenal.cycle(-1);
-  if (e.code === 'KeyE') arsenal.cycle(1);
-  if (e.code === 'KeyR') throwGrenade();
+  if (e.code === 'KeyR') arsenal.manualReload();
+  if (e.code === 'KeyG') throwGrenade();
+  if (e.code === 'KeyE') window.__game?.allies?.recruit?.(); // E — действие: позвать амбассадора
+  // Q — радио в машине (делает sg-audio), за оружием не закреплено.
   // [v3-weapons] end
   if (e.code === 'KeyG' && !vehicle) allies.recruit(player.position, camera.getWorldDirection(new THREE.Vector3())); // [v3-pop]
   if (e.code === 'KeyZ') audio.nextStation(); // [v3-audio]
@@ -229,8 +230,9 @@ function onKill(e) {
 
 // [v3-weapons] begin
 const arsenal = new Arsenal({
-  scene, camera, player, enemies, fx, hud, graffiti, war, colliders, state,
+  scene, camera, player, enemies, fx, hud, graffiti, war, colliders, state, cars, traffic,
   getVehicle: () => vehicle, onKill: (e) => onKill(e),
+  kick: (a) => { camPitch = Math.min(0.6, camPitch + a); }, // отдача подбрасывает прицел
 });
 arsenal.movePickupsNear(spawnPoint());
 const shoot = () => arsenal.shoot();
@@ -373,7 +375,7 @@ function step(dt) {
     stunts.update(dt, vehicle, () => { war.reach += 15; war.addMoney(200); });
   } else if (aircraft.flying) { // [v3-air] за штурвалом: вертолёт двигает aircraft.update
   } else {
-    player.update(dt, input, camYaw, colliders, cars, { aiming: input.fire && ['pistol', 'smg'].includes(arsenal.current), spraying: input.fire && arsenal.current === 'spray', aimPitch: camPitch });
+    player.update(dt, input, camYaw, colliders, cars, { aiming: input.fire && arsenal.aiming, spraying: input.fire && arsenal.current === 'spray', aimPitch: camPitch });
     traffic.collide(player);
     for (const c of cars) {
       _v.subVectors(player.position, c.position).setY(0);
@@ -408,7 +410,7 @@ function step(dt) {
   hud.setSpray(!vehicle && arsenal.current === 'spray' && graffiti.current ? graffiti.current.progress : null);
   hud.setArrow(actor.position, war.target, camYaw);
   const nearCar = !vehicle && (cars.some((c) => c.position.distanceTo(player.position) < 4.5) || traffic.cars.some((c) => c.mesh.position.distanceTo(player.position) < 5));
-  hud.setHint(vehicle ? 'WASD — ехать · Пробел — ручник · F — выйти'
+  hud.setHint(vehicle ? '~WASD~ — ехать · ~Пробел~ — ручник · ~Q~ — радио · ~F~ — выйти'
     : nearCar ? 'F — сесть / угнать'
     : arsenal.hint()); // [v3-weapons]
 }
@@ -428,7 +430,7 @@ function updateZones(t) {
 const fns = new Fns({ scene, traffic, war, hud, input, camera, player, colliders, state, getActor: () => vehicle || player, getVehicle: () => vehicle, getWeapon: () => arsenal.current });
 // [v3-fns] end
 // [v3-jury] begin
-jury.cheats = initCheats({ war, player, traffic, hud });
+jury.cheats = initCheats({ war, player, traffic, hud, arsenal }); // [v3-weapons] arsenal для ARSENAL
 jury.story = initStory({ renderer, scene, camera, retro, player, hud });
 // [v3-jury] end
 // [v3-absurd] begin — события рынка и озвучка: src/events.js, src/voice.js

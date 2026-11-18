@@ -13,6 +13,44 @@ function flash(el, ms, timers, key) {
   timers[key] = setTimeout(() => el.classList.remove('show'), ms);
 }
 
+// Канал сообщений одного типа: на экране не больше одного, новые встают в очередь.
+// Одинаковые по смыслу (цифры не в счёт) не дублируются: обновляется текст.
+const MIN_SHOW = 1600, MAX_QUEUE = 3, GAP = 280;
+class Channel {
+  constructor(el, render) { this.el = el; this.render = render; this.queue = []; this.log = []; this.cur = null; this.timer = 0; }
+  push(content, ms, key = String(content).replace(/\d+/g, '#')) {
+    this.log.push(String(Array.isArray(content) ? content[0] : content).replace(/<[^>]*>/g, ''));
+    if (this.log.length > 30) this.log.shift();
+    const m = { content, ms, key };
+    if (this.cur && this.cur.key === key) { this.render(this.el, content); this.cur.content = content; this.schedule(Math.max(this.left(), ms * 0.6)); return; }
+    if (!this.cur) return this.show(m);
+    const i = this.queue.findIndex((q) => q.key === key);
+    if (i >= 0) this.queue[i] = m; else this.queue.push(m);
+    if (this.queue.length > MAX_QUEUE) this.queue.shift();
+    // Есть очередь — текущее досиживает только минимальное время.
+    this.schedule(Math.min(this.left(), Math.max(0, this.cur.start + MIN_SHOW - performance.now())));
+  }
+  show(m) {
+    this.cur = { ...m, start: performance.now() };
+    this.render(this.el, m.content);
+    this.el.classList.add('show');
+    this.schedule(this.queue.length ? MIN_SHOW : m.ms);
+  }
+  left() { return this.cur ? Math.max(0, this.cur.end - performance.now()) : 0; }
+  schedule(ms) {
+    clearTimeout(this.timer);
+    this.cur.end = performance.now() + ms;
+    this.timer = setTimeout(() => this.next(), ms);
+  }
+  next() {
+    this.el.classList.remove('show');
+    this.cur = null;
+    const m = this.queue.shift();
+    if (m) this.timer = setTimeout(() => { if (!this.cur) this.show(m); }, GAP);
+  }
+  get text() { return this.cur ? this.el.textContent : ''; }
+}
+
 // Интерфейс в духе классических GTA: блок справа сверху, радар, хелпбокс, субтитры, район/машина.
 export class Hud {
   constructor() {
@@ -24,6 +62,12 @@ export class Hud {
     this.money = 0;
     this.moneyShown = 0;
     this.statusKey = '';
+    const html = (el, h) => { el.innerHTML = h; };
+    this.ch = {
+      help: new Channel(this.el.help, (el, t) => { el.innerHTML = keys(t); }),
+      subtitle: new Channel(this.el.subtitle, html),
+      district: new Channel(this.el.zoneName, (el, [name, color]) => { el.textContent = name; el.style.color = color; }),
+    };
     this.setClock(18, 30);
     this.setWanted(0);
     this.setArmor(0);
@@ -78,12 +122,12 @@ export class Hud {
     items.forEach((w, i) => {
       const a = (i / items.length) * Math.PI * 2;
       const it = document.createElement('div');
-      it.className = 'wheelItem' + (w.empty ? ' empty' : '');
+      it.className = 'wheelItem' + (w.empty ? ' empty' : '') + (w.id ? '' : ' none');
       it.dataset.id = w.id;
-      it.style.left = `${50 + Math.sin(a) * 36}%`;
-      it.style.top = `${50 - Math.cos(a) * 36}%`;
+      it.style.left = `${50 + Math.sin(a) * 39}%`;
+      it.style.top = `${50 - Math.cos(a) * 39}%`;
       const c = document.createElement('canvas');
-      c.width = 78; c.height = 48;
+      c.width = 64; c.height = 40;
       drawWeaponIcon(c, w.id);
       const k = document.createElement('b'); k.textContent = w.slot;
       const n = document.createElement('span'); n.textContent = w.short;
@@ -103,20 +147,10 @@ export class Hud {
 
   // --- Тексты как в SA ---
   // Хелпбокс слева сверху, 5 с. Клавиши в тильдах: «Нажмите ~F~».
-  help(text, ms = 5000) {
-    this.el.help.innerHTML = keys(text);
-    flash(this.el.help, ms, this.timers, 'help');
-  }
+  help(text, ms = 5000, key) { this.ch.help.push(text, ms, key); }
   // Субтитры цели внизу по центру. html: ключевые слова можно обернуть в <b style="color:…">.
-  subtitle(html, ms = 4500) {
-    this.el.subtitle.innerHTML = html;
-    flash(this.el.subtitle, ms, this.timers, 'subtitle');
-  }
-  showDistrict(name, color = '#fff') {
-    this.el.zoneName.textContent = name;
-    this.el.zoneName.style.color = color;
-    flash(this.el.zoneName, 3500, this.timers, 'zone');
-  }
+  subtitle(html, ms = 4500) { this.ch.subtitle.push(html, ms, html.replace(/<[^>]*>/g, '').replace(/\d+/g, '#')); }
+  showDistrict(name, color = '#fff') { this.ch.district.push([name, color], 3500, name); }
   showVehicle(name) {
     this.el.carName.textContent = name;
     flash(this.el.carName, 3000, this.timers, 'car');
@@ -132,11 +166,10 @@ export class Hud {
   alert(text, color = '#ffd23f') { this.subtitle(`<b style="color:${color}">${esc(text)}</b>`, 4500); }
   // Статус войны → хелпбокс, только когда смысл сменился (цифры обновляем молча).
   setStatus(t) {
-    t = t.replace(/^\p{Extended_Pictographic}️?\s*/u, '').replace('Баллончик [2]', 'Баллончик ~5~').replace(/ЛКМ/g, '~ЛКМ~');
+    t = t.replace(/^\p{Extended_Pictographic}️?\s*/u, '').replace('Баллончик [2]', 'Баллончик ~9~').replace(/ЛКМ/g, '~ЛКМ~');
     const key = t.replace(/\d+/g, '#');
-    if (key !== this.statusKey) { this.statusKey = key; if (t) this.help(t, 6000); }
-    else if (this.el.help.classList.contains('show') && this.el.help.dataset.t !== t) this.el.help.innerHTML = keys(t);
-    this.el.help.dataset.t = t;
+    if (key !== this.statusKey) { this.statusKey = key; if (t) this.help(t, 6000, 'status:' + key); }
+    else if (this.ch.help.cur?.key === 'status:' + key && this.ch.help.cur.content !== t) { this.ch.help.cur.content = t; this.el.help.innerHTML = keys(t); }
   }
   setScore() {}
   setMatchTimer() {}

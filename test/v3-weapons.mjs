@@ -18,6 +18,7 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'} ${msg}`); if (
 const g = (fn, arg) => page.evaluate(fn, arg);
 const cur = () => g(() => window.__game.weapon);
 const press = async (k) => { await page.keyboard.press(k); await page.waitForTimeout(60); };
+const wheel = async (dy) => { await page.mouse.move(640, 360); await page.mouse.wheel(0, dy); await page.waitForTimeout(100); };
 
 await page.goto(GAME_URL);
 await page.waitForFunction(() => window.__game);
@@ -30,19 +31,19 @@ await page.waitForTimeout(300);
 
 // Переключение.
 check(await cur() === 'pistol', 'старт с пистолетом');
-await press('KeyE'); check(await cur() === 'smg', 'E → автомат');
-await press('KeyE'); check(await cur() === 'grenade', 'E → граната');
-await press('KeyQ'); check(await cur() === 'smg', 'Q → автомат');
+await wheel(120); check(await cur() === 'smg', 'колесо вниз → автомат');
+await wheel(120); check(await cur() === 'grenade', 'колесо вниз → граната');
+await wheel(-120); check(await cur() === 'smg', 'колесо вверх → автомат');
 await press('Digit1'); check(await cur() === 'fists', '1 → кулаки');
-await press('Digit5'); check(await cur() === 'spray', '5 → баллончик');
-await press('KeyE'); check(await cur() === 'fists', 'E по кругу: баллончик → кулаки');
+await press('Digit9'); check(await cur() === 'spray', '9 → баллончик');
+await wheel(120); check(await cur() === 'fists', 'по кругу: баллончик → кулаки');
+await press('KeyQ'); await press('KeyE'); check(await cur() === 'fists', 'Q/E оружие не листают');
 await g(() => { window.__game.arsenal.ammo.grenade.mag = 0; });
-await press('Digit3'); await press('KeyE');
+await press('Digit4'); await wheel(120);
 check(await cur() === 'spray', 'граната без запаса пропускается (автомат → баллончик)');
-await press('Digit4'); check(await cur() === 'spray', 'пустую гранату цифрой не выбрать');
+await press('Digit8'); check(await cur() === 'spray', 'пустую гранату цифрой не выбрать');
 await g(() => { window.__game.arsenal.ammo.grenade.mag = 2; });
-await page.mouse.move(640, 360);
-await page.mouse.wheel(0, 120); await page.waitForTimeout(80);
+await wheel(120);
 check(await cur() === 'fists', 'колесо мыши листает');
 
 // Расход патронов.
@@ -63,6 +64,12 @@ await page.waitForTimeout(1400);
 const a2 = await g(() => ({ ...window.__game.arsenal.ammo.pistol }));
 check(a2.mag === 12 && a2.res === a1.res - 12, `после перезарядки ${a2.mag}-${a2.res}`);
 
+// Ручная перезарядка на R.
+await g(() => { window.__game.arsenal.ammo.pistol.mag = 5; });
+await press('KeyR');
+check(await g(() => window.__game.arsenal.reloadT > 0), 'R — перезарядка');
+await page.waitForTimeout(1400);
+
 // Кулаки.
 const punched = await g(() => {
   const c = window.__game, p = c.player.position, h = c.player.heading;
@@ -74,7 +81,7 @@ const punched = await g(() => {
   return { hp, punchT: c.player.h.punchT };
 });
 check(punched.hp === 20 && punched.punchT > 0, `удар кулаком: −20 hp (осталось ${punched.hp})`);
-await press('Digit3');
+await press('Digit4');
 
 // HUD-тексты для скриншота.
 await g(() => {
@@ -109,7 +116,7 @@ check(await cur() === 'pistol' && await g(() => window.__game.state.timeScale) =
 // Выбор направлением мыши (pointer lock в headless нет — дергаем тот же обработчик).
 await page.keyboard.down('Tab');
 await g(() => window.__game.arsenal.wheelMove(0, 80)); // вниз → между 3 и 4: слот 3/4
-await g(() => window.__game.arsenal.wheelMove(-200, -60)); // влево-вверх → баллончик (слот 5)
+await g(() => window.__game.arsenal.wheelMove(-80, -180)); // влево-вверх → баллончик (слот 9)
 await page.keyboard.up('Tab');
 check(await cur() === 'spray', 'колесо: выбор направлением мыши');
 

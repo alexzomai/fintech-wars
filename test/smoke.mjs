@@ -137,8 +137,8 @@ const tag = await g(() => {
   return { x: t.pos.x, z: t.pos.z, total: c.graffiti.inDistrict(t.d).length };
 });
 check(tag.total >= 4, `в районе есть теги конкурента (${tag.total})`);
-await page.keyboard.press('Digit5');
-check(await g(() => window.__game.weapon === 'spray'), 'баллончик выбирается клавишей 5');
+await page.keyboard.press('Digit9');
+check(await g(() => window.__game.weapon === 'spray'), 'баллончик выбирается клавишей 9');
 await aimAt(tag.x, 2.6, tag.z);
 await page.mouse.down();
 await page.waitForTimeout(1000);
@@ -230,12 +230,12 @@ await shot('4-captured');
 await g(() => { window.__game.player.hp = 100; });
 const m0 = await g(() => window.__game.war.money);
 await g(() => { const c = window.__game; c.aim(c.camYaw, -0.3); });
-await page.keyboard.press('KeyR');
+await page.keyboard.press('KeyG');
 await page.waitForTimeout(50);
 // Деньги сразу после броска: через пару секунд их маскирует доход с районов.
 const gr = await g(() => window.__game.war.money);
 const blasts = await g(() => new Promise((r) => setTimeout(() => r(window.__game.fx.items.length), 2500)));
-check(m0 >= 150 && gr === m0 - 150, `«Ключевая ставка» (R) стоит $150 ($${m0} → $${gr})`);
+check(m0 >= 150 && gr === m0 - 150, `граната «Дефолт» (G) стоит $150 ($${m0} → $${gr})`);
 
 // Угон машины из трафика.
 const t0 = await g(() => {
