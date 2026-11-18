@@ -8,6 +8,10 @@ import { Enemies } from './enemies.js';
 import { War } from './war.js';
 import { Fx } from './fx.js';
 import { Hud } from './hud.js';
+// [v3-pop] begin
+import { Npcs } from './npc.js';
+import { Allies } from './allies.js';
+// [v3-pop] end
 import { RetroPass, RENDER_SCALE } from './retro.js';
 import '@fontsource/press-start-2p/cyrillic-400.css';
 import '@fontsource/press-start-2p/latin-400.css';
@@ -69,6 +73,11 @@ graffiti.place(walls);
 ownerListeners.push((d) => graffiti.onOwnerChange(d));
 const traffic = new Traffic(scene, 14);
 const player = new Player(scene);
+// [v3-pop] begin
+const npcs = new Npcs(scene, { colliders, districts });
+const allies = new Allies(scene, { enemies, npcs, fx, hud, districts, colliders, onKill: (e) => onKill(e) });
+enemies.onShot = (p) => npcs.panic(p, 18);
+// [v3-pop] end
 const spawnPoint = () => {
   const d = districts.find((x) => x.owner === 'green' && x.hq) || districts.find((x) => x.owner === 'green') || districts[0];
   return d.hq ? new THREE.Vector3(d.hq.x + CELL / 2 + 3, 0, d.hq.z) : d.zone.clone();
@@ -113,6 +122,7 @@ addEventListener('keydown', (e) => {
   if (e.code === 'Digit1') setWeapon('pistol');
   if (e.code === 'Digit2') setWeapon('spray');
   if (e.code === 'KeyR') throwGrenade();
+  if (e.code === 'KeyG' && !vehicle) allies.recruit(player.position, camera.getWorldDirection(new THREE.Vector3())); // [v3-pop]
 });
 addEventListener('keyup', (e) => { if (KEYS[e.code]) input[KEYS[e.code]] = false; });
 addEventListener('mousedown', (e) => { if (e.button === 0) input.fire = true; });
@@ -183,6 +193,7 @@ function shoot() {
     .add(new THREE.Vector3(Math.sin(player.heading), 0, Math.cos(player.heading)).multiplyScalar(0.8));
   fx.tracer(muzzle, end, 0xb8ffc8);
   fx.spark(muzzle, 0xfff0a0, 0.15);
+  npcs.panic(player.position, 25); // [v3-pop]
   if (hit) {
     fx.spark(end, hit.head ? 0xff4040 : 0xffd27a);
     if (enemies.damage(hit.e, hit.head ? 50 : 25)) onKill(hit.e);
@@ -228,6 +239,7 @@ function updateGrenades(dt) {
     if (g.mesh.position.y > 0.3 && g.t < 2.5) continue;
     const at = g.mesh.position.clone().setY(0.5);
     fx.blast(at, 11);
+    npcs.panic(at, 30); // [v3-pop]
     let n = 0;
     for (const e of enemies.alive()) {
       if (e.position.distanceTo(at) > 11) continue;
@@ -378,6 +390,10 @@ function step(dt) {
   traffic.update(dt, [...cars, ...(vehicle ? [] : [player]), ...traffic.cars]);
   enemies.update(dt, { target: actor.position, targetAlive: true, colliders, hurt });
   updateGrenades(dt);
+  // [v3-pop] begin
+  npcs.update(dt, { center: actor.position, vehicle, traffic: traffic.cars, budget: 80 - enemies.alive().length - allies.count });
+  allies.update(dt, { player, vehicle });
+  // [v3-pop] end
   war.update(dt, actor.position, true);
 
   hud.setHp(player.hp, player.maxHp);
@@ -435,4 +451,5 @@ window.__game = {
   get camYaw() { return camYaw; },
   aim(yaw, pitch = 0) { camYaw = yaw; camPitch = pitch; },
   toggleCar, shoot, throwGrenade, cam: camera, renderer,
+  npcs, allies, // [v3-pop]
 };
