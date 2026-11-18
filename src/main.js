@@ -40,6 +40,9 @@ import { initAudio } from './audio.js';
 import { initEvents } from './events.js';
 import { attachVoice } from './voice.js';
 // [v3-absurd] end
+// [v3-decor] begin
+import { initDecor } from './decor.js';
+// [v3-decor] end
 import '@fontsource/press-start-2p/cyrillic-400.css';
 import '@fontsource/press-start-2p/latin-400.css';
 
@@ -433,6 +436,9 @@ const voice = attachVoice(hud);
 const marketEvents = initEvents({ scene, player, enemies, traffic, war, hud, state, getActor: () => vehicle || player });
 window.__absurd = { events: marketEvents, voice };
 // [v3-absurd] end
+// [v3-decor] begin
+const decor = initDecor({ scene, colliders, walls, districts, fx, hud, war, state, camera, input, player, getVehicle: () => vehicle, getWeapon: () => arsenal.current });
+// [v3-decor] end
 const clock = new THREE.Clock();
 let mapTimer = 0, elapsed = 0;
 updateCamera(0, true);
@@ -446,6 +452,8 @@ function frame() {
   }
   aircraft.update(dt, input); // [v3-air]
   fx.update(dt);
+  decor.update(dt); // [v3-decor]
+  updateZones(elapsed);
   updateCamera(dt);
   // [v3-war] begin
   markers.update(state.mode === 'play' ? enemies.alive((e) => e.tag && (e.tag === war.capture?.tag || e.tag === war.counter?.tag)) : [], elapsed, state.mode === 'play' ? war.squads.allies() : []);
