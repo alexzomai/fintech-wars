@@ -1,9 +1,12 @@
 import * as THREE from 'three';
 import { resolveCircle } from './city.js';
 import { enableSnap } from './retro.js';
+import { buildCarModel, randomCarType } from './props.js';
+export { CAR_TYPES, spinWheels, setBrakeLights } from './props.js';
 
 // Меш машинки из боксов. Перед машины смотрит в +Z.
-export function makeCarMesh(color = 0xff4d4d) {
+// Синхронно отдаёт коробку-фолбэк; когда GLB (Kenney Car Kit, CC0) загрузится — подменяет её моделью.
+export function makeCarMesh(color = 0xff4d4d, kind = randomCarType()) {
   const g = new THREE.Group();
   const body = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.8, 4.4), new THREE.MeshStandardMaterial({ color, metalness: 0.3, roughness: 0.5 }));
   body.position.y = 0.8;
@@ -25,6 +28,13 @@ export function makeCarMesh(color = 0xff4d4d) {
     g.add(l);
   }
   g.traverse((o) => { if (o.isMesh) { o.castShadow = true; enableSnap(o.material); } });
+  const fallback = [...g.children];
+  buildCarModel(kind, color).then((model) => {
+    fallback.forEach((c) => g.remove(c));
+    g.add(model);
+    g.userData.holder = model;
+  }).catch(() => {});
+  g.userData.kind = kind;
   return g;
 }
 
