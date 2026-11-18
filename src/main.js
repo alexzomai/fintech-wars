@@ -10,6 +10,11 @@ import { War } from './war.js';
 import { Fx } from './fx.js';
 import { Hud } from './hud.js';
 import { RetroPass, RENDER_SCALE } from './retro.js';
+// [v3-jury] begin
+import { openTagEditor, savedTagCanvas } from './tageditor.js';
+import { initCheats } from './cheats.js';
+import { initStory } from './story.js';
+// [v3-jury] end
 import '@fontsource/press-start-2p/cyrillic-400.css';
 import '@fontsource/press-start-2p/latin-400.css';
 
@@ -284,7 +289,18 @@ function endGame(kind) {
   document.getElementById('end').classList.remove('hidden');
 }
 
+// [v3-jury] begin
+let juryEditorDone = location.search.includes('test');
+savedTagCanvas().then((c) => { if (c) graffiti.setCustomTag(c); });
+const jury = { cheats: null, story: null };
+// [v3-jury] end
 document.getElementById('play').addEventListener('click', () => {
+  // [v3-jury] begin
+  if (!juryEditorDone) {
+    openTagEditor((c) => { juryEditorDone = true; if (c) graffiti.setCustomTag(c); document.getElementById('play').click(); });
+    return;
+  }
+  // [v3-jury] end
   document.getElementById('start').classList.add('hidden');
   state.mode = 'play';
   canvas.requestPointerLock?.();
@@ -406,6 +422,10 @@ function updateZones(t) {
   }
 }
 
+// [v3-jury] begin
+jury.cheats = initCheats({ war, player, traffic, hud });
+jury.story = initStory({ renderer, scene, camera, retro, player, hud });
+// [v3-jury] end
 const clock = new THREE.Clock();
 let mapTimer = 0, elapsed = 0;
 updateCamera(0, true);
@@ -437,5 +457,5 @@ window.__game = {
   get vehicle() { return vehicle; },
   get camYaw() { return camYaw; },
   aim(yaw, pitch = 0) { camYaw = yaw; camPitch = pitch; },
-  toggleCar, shoot, throwGrenade, cam: camera, renderer,
+  toggleCar, shoot, throwGrenade, cam: camera, renderer, jury,
 };

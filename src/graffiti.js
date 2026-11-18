@@ -76,6 +76,16 @@ export class Graffiti {
     }
   }
 
+  // [v3-jury] Пользовательский тег: рисунок из редактора становится текстурой всех зелёных тегов.
+  setCustomTag(canvas) {
+    const t = new THREE.CanvasTexture(canvas);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.magFilter = THREE.NearestFilter;
+    this.mats.green.map = t;
+    this.mats.green.needsUpdate = true;
+    this.customTag = t;
+  }
+
   setTag(tag, owner) {
     tag.owner = owner;
     tag.progress = 0;

@@ -34,7 +34,7 @@ const aimAt = async (x, y, z) => {
   }
 };
 
-await page.goto(GAME_URL);
+await page.goto(GAME_URL + '?test');
 await page.waitForFunction(() => window.__game, null, { timeout: 15000 });
 await page.waitForTimeout(1500);
 await shot('0-menu');
