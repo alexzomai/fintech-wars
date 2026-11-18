@@ -18,6 +18,9 @@ import { openTagEditor, savedTagCanvas } from './tageditor.js';
 import { initCheats } from './cheats.js';
 import { initStory } from './story.js';
 // [v3-jury] end
+// [v3-palych] begin
+import { initPalych } from './missions.js';
+// [v3-palych] end
 import '@fontsource/press-start-2p/cyrillic-400.css';
 import '@fontsource/press-start-2p/latin-400.css';
 
@@ -256,11 +259,15 @@ document.getElementById('play').addEventListener('click', () => {
     return;
   }
   // [v3-jury] end
+  // [v3-palych] begin — пролог после редактора тега
+  if (!palych.prologueDone) { palych.prologue(() => document.getElementById('play').click()); return; }
+  // [v3-palych] end
   document.getElementById('start').classList.add('hidden');
   state.mode = 'play';
   canvas.requestPointerLock?.();
   hud.subtitle(`Перекрась <b style="color:${BANKS.red.css}">граффити конкурентов</b> и забери <b style="color:${BANKS.green.css}">их районы</b>`); // [v3-weapons]
   setWeapon('pistol');
+  palych.start(); // [v3-palych]
 });
 document.getElementById('again').addEventListener('click', () => location.reload());
 
@@ -376,6 +383,9 @@ function updateZones(t) {
 jury.cheats = initCheats({ war, player, traffic, hud });
 jury.story = initStory({ renderer, scene, camera, retro, player, hud });
 // [v3-jury] end
+// [v3-palych] begin
+const palych = initPalych({ state, hud, war, graffiti, districts, player, getVehicle: () => vehicle, input });
+// [v3-palych] end
 const clock = new THREE.Clock();
 let mapTimer = 0, elapsed = 0;
 updateCamera(0, true);
@@ -409,4 +419,5 @@ window.__game = {
   get camYaw() { return camYaw; },
   aim(yaw, pitch = 0) { camYaw = yaw; camPitch = pitch; },
   toggleCar, shoot, throwGrenade, cam: camera, renderer, jury,
+  palych, // [v3-palych]
 };
