@@ -18,6 +18,10 @@ import { openTagEditor, savedTagCanvas } from './tageditor.js';
 import { initCheats } from './cheats.js';
 import { initStory } from './story.js';
 // [v3-jury] end
+// [v3-absurd] begin
+import { initEvents } from './events.js';
+import { attachVoice } from './voice.js';
+// [v3-absurd] end
 import '@fontsource/press-start-2p/cyrillic-400.css';
 import '@fontsource/press-start-2p/latin-400.css';
 
@@ -376,6 +380,11 @@ function updateZones(t) {
 jury.cheats = initCheats({ war, player, traffic, hud });
 jury.story = initStory({ renderer, scene, camera, retro, player, hud });
 // [v3-jury] end
+// [v3-absurd] begin — события рынка и озвучка: src/events.js, src/voice.js
+const voice = attachVoice(hud);
+const marketEvents = initEvents({ scene, player, enemies, traffic, war, hud, state, getActor: () => vehicle || player });
+window.__absurd = { events: marketEvents, voice };
+// [v3-absurd] end
 const clock = new THREE.Clock();
 let mapTimer = 0, elapsed = 0;
 updateCamera(0, true);
