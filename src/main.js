@@ -18,6 +18,10 @@ import { openTagEditor, savedTagCanvas } from './tageditor.js';
 import { initCheats } from './cheats.js';
 import { initStory } from './story.js';
 // [v3-jury] end
+// [v3-neon] begin
+import { initNeon } from './neon.js';
+import { initPauseMenu } from './pausemenu.js';
+// [v3-neon] end
 import '@fontsource/press-start-2p/cyrillic-400.css';
 import '@fontsource/press-start-2p/latin-400.css';
 
@@ -110,12 +114,17 @@ const war = new War({
 
 // --- Ввод ---
 const input = { up: false, down: false, left: false, right: false, brake: false, run: false, fire: false };
+// [v3-neon] begin
+const neon = initNeon({ scene, districts, sun, camera, hud, state });
+const pause = initPauseMenu({ state, districts, war, graffiti, colliders, input, neon, canvas, actor: () => vehicle || player });
+// [v3-neon] end
 const KEYS = {
   KeyW: 'up', ArrowUp: 'up', KeyS: 'down', ArrowDown: 'down', KeyA: 'left', ArrowLeft: 'left',
   KeyD: 'right', ArrowRight: 'right', Space: 'brake', ShiftLeft: 'run', ShiftRight: 'run',
 };
 addEventListener('keydown', (e) => {
   if (KEYS[e.code]) { input[KEYS[e.code]] = true; e.preventDefault(); }
+  if (e.code === 'KeyN' && !e.repeat && state.mode === 'play') neon.toggleNight(); // [v3-neon]
   if (state.mode !== 'play' || e.repeat) return;
   if (e.code === 'KeyF') toggleCar();
   if (e.code === 'Space' && !vehicle) player.jump();
@@ -395,6 +404,7 @@ function frame() {
     mapTimer = 0.05;
     hud.drawMap((vehicle || player).position, camYaw, colliders, districts, enemies.list, war.target, graffiti.tags);
   }
+  neon.update(dt); pause.update(dt); // [v3-neon]
   retro.render(scene, camera);
   requestAnimationFrame(frame);
 }
@@ -409,4 +419,5 @@ window.__game = {
   get camYaw() { return camYaw; },
   aim(yaw, pitch = 0) { camYaw = yaw; camPitch = pitch; },
   toggleCar, shoot, throwGrenade, cam: camera, renderer, jury,
+  neon, pause, // [v3-neon]
 };
