@@ -6,9 +6,11 @@ export const MATCH_TIME = 8 * 60;
 
 // Логика войны за районы: захват волнами, доход, контратаки, ИИ против ИИ, охрана.
 export class War {
-  constructor({ districts, enemies, hud, onWin, onLose }) {
-    Object.assign(this, { districts, enemies, hud, onWin, onLose });
+  constructor({ districts, enemies, hud, graffiti, onWin, onLose }) {
+    Object.assign(this, { districts, enemies, hud, graffiti, onWin, onLose });
     this.money = 0;
+    this.reach = 0; // «Охваты»
+    this.gateHintT = 0;
     this.time = MATCH_TIME;
     this.capture = null; // { d, wave, waitT }
     this.counter = null; // { d, bank, timeLeft }
@@ -72,6 +74,16 @@ export class War {
     if (!this.capture) {
       if (!alive || this.counter?.d?.owner === 'green' && actorPos.distanceTo(this.counter.d.zone) < 40) return;
       const d = this.districts.find((x) => x.owner !== 'green' && actorPos.distanceTo(x.zone) < ZONE_R);
+      this.gateHintT -= dt;
+      if (d && !this.graffitiReady(d)) {
+        // Войну можно начать, только когда о нас уже говорят: перекрашена половина тегов.
+        if (this.gateHintT <= 0) {
+          this.gateHintT = 4;
+          const t = this.tagInfo(d);
+          this.hud.toast(`Сначала граффити: ${t.green}/${t.total} (нужно ${t.need})`, '#ffd23f');
+        }
+        return;
+      }
       if (d) this.startCapture(d);
       return;
     }
@@ -172,6 +184,13 @@ export class War {
     this.hud.toast(`${BANKS[bank].name} поглотил район у ${BANKS[prev].name}`, BANKS[bank].css);
   }
 
+  tagInfo(d) {
+    const total = this.graffiti.inDistrict(d).length, green = this.graffiti.greenCount(d);
+    return { total, green, need: Math.ceil(total / 2) };
+  }
+
+  graffitiReady(d) { const t = this.tagInfo(d); return t.green >= t.need; }
+
   updateStatus(actorPos) {
     const c = this.capture, k = this.counter;
     let s = '';
@@ -181,7 +200,16 @@ export class War {
     } else if (k) {
       s = `🚨 Защити район! ${Math.ceil(k.timeLeft)} с · врагов ${this.enemies.alive((e) => e.tag === k.tag).length}`;
     } else {
-      s = '🎯 Въезжай в чужой район и встань в круг под билбордом';
+      // Подсказка зависит от района, в котором стоим.
+      const here = this.districts.find((d) => actorPos.x >= d.minX && actorPos.x < d.maxX && actorPos.z >= d.minZ && actorPos.z < d.maxZ);
+      if (here && here.owner !== 'green') {
+        const t = this.tagInfo(here);
+        s = t.green >= t.need
+          ? `🎯 ${here.name}: граффити ${t.green}/${t.total} — встань в круг под билбордом!`
+          : `🎨 ${here.name}: граффити ${t.green}/${t.total}. Баллончик [2], держи ЛКМ на теге`;
+      } else {
+        s = '🎯 Едь в чужой район и перекрась граффити баллончиком [2]';
+      }
     }
     this.hud.setStatus(s);
     // Куда указывает стрелка: защита > текущий захват > ближайший чужой район.

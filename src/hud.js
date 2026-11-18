@@ -5,7 +5,7 @@ const $ = (id) => document.getElementById(id);
 export class Hud {
   constructor() {
     this.el = {};
-    for (const id of ['money', 'speed', 'status', 'matchTimer', 'arrow', 'hint', 'toast', 'alert', 'hpFill', 'hpText', 'scoreG', 'scoreR', 'scoreY', 'crosshair', 'grenades']) this.el[id] = $(id);
+    for (const id of ['money', 'speed', 'status', 'matchTimer', 'arrow', 'hint', 'toast', 'alert', 'hpFill', 'hpText', 'scoreG', 'scoreR', 'scoreY', 'crosshair', 'weapon', 'sprayBar']) this.el[id] = $(id);
     this.map = $('minimap').getContext('2d');
     this.toastTimer = 0;
     this.alertTimer = 0;
@@ -15,6 +15,11 @@ export class Hud {
   setSpeed(v, inCar) { this.el.speed.textContent = inCar ? `${Math.round(Math.abs(v) * 3.6)} км/ч` : ''; }
   setStatus(t) { if (this.el.status.textContent !== t) this.el.status.textContent = t; }
   setHint(t) { if (this.el.hint.textContent !== t) this.el.hint.textContent = t; }
+  setWeapon(w) { this.el.weapon.textContent = w === 'spray' ? '[2] Баллончик' : '[1] Пистолет'; this.el.weapon.style.color = w === 'spray' ? '#7dff8a' : '#fff'; }
+  setSpray(k) {
+    this.el.sprayBar.style.display = k == null ? 'none' : 'block';
+    if (k != null) this.el.sprayBar.firstChild.style.width = `${Math.min(1, k) * 100}%`;
+  }
   setCrosshair(on) { this.el.crosshair.style.display = on ? 'block' : 'none'; }
   setScore(g, r, y) { this.el.scoreG.textContent = g; this.el.scoreR.textContent = r; this.el.scoreY.textContent = y; }
 
@@ -72,7 +77,7 @@ export class Hud {
   }
 
   // Мини-карта: районы в цвете владельца, повёрнута по взгляду камеры.
-  drawMap(center, yaw, colliders, districts, enemies, target) {
+  drawMap(center, yaw, colliders, districts, enemies, target, tags = []) {
     const ctx = this.map;
     const W = ctx.canvas.width, H = ctx.canvas.height, s = 0.75;
     const c = Math.cos(yaw), sn = Math.sin(yaw);
@@ -106,6 +111,16 @@ export class Hud {
       ctx.beginPath();
       ctx.arc(x, y, 6, 0, Math.PI * 2);
       ctx.stroke();
+    }
+    // Граффити: ромбики в цвете владельца тега.
+    for (const t of tags) {
+      const [x, y] = toScreen(t.pos.x, t.pos.z);
+      ctx.fillStyle = BANKS[t.owner].css;
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(x, y - 4); ctx.lineTo(x + 4, y); ctx.lineTo(x, y + 4); ctx.lineTo(x - 4, y); ctx.closePath();
+      ctx.fill(); ctx.stroke();
     }
     for (const e of enemies) {
       if (e.dead) continue;

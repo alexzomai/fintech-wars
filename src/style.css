@@ -14,7 +14,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #2b1f3a; f
 #matchTimer.low { color: #ff6b6b; }
 #stats { position: absolute; top: 14px; right: 16px; text-align: right; display: flex; flex-direction: column; gap: 8px; }
 #money { font-size: 26px; color: #7dff8a; }
-#speed, #grenades { font-size: 12px; }
+#speed, #weapon { font-size: 12px; }
 .income { position: absolute; right: 0; top: 36px; color: #7dff8a; animation: rise 1.2s forwards; }
 @keyframes rise { to { transform: translateY(-30px); opacity: 0; } }
 #status { position: absolute; top: 46px; left: 16px; font-size: 11px; line-height: 1.6; max-width: calc(100% - 32px); }
@@ -43,3 +43,5 @@ body.hurt #damage { animation: hurt .35s; }
 .screen .pitch { opacity: .9; }
 .screen .keys { font-size: 10px; opacity: .75; }
 .screen button { font-family: var(--font); font-size: 18px; padding: 14px 32px; border: 3px solid #000; background: #2ecc59; color: #111; cursor: pointer; text-shadow: none; }
+#sprayBar { position: absolute; left: 50%; top: calc(50% + 22px); width: 80px; height: 8px; margin-left: -40px; background: #000a; border: 2px solid #000; display: none; }
+#sprayBar div { height: 100%; width: 0; background: #2ecc59; }

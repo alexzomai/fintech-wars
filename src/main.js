@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { buildCity, CELL, BANKS, rayBoxes, resolveCircle, districtAt } from './city.js';
+import { buildCity, CELL, BANKS, rayBoxes, resolveCircle, districtAt, ownerListeners } from './city.js';
+import { Graffiti } from './graffiti.js';
 import { Car } from './car.js';
 import { Player } from './player.js';
 import { Traffic } from './traffic.js';
@@ -59,10 +60,13 @@ addEventListener('resize', resize);
 resize();
 
 // --- Мир ---
-const { colliders, districts } = buildCity(scene);
+const { colliders, districts, walls } = buildCity(scene);
 const hud = new Hud();
 const fx = new Fx(scene);
 const enemies = new Enemies(scene, fx);
+const graffiti = new Graffiti(scene, districts, fx);
+graffiti.place(walls);
+ownerListeners.push((d) => graffiti.onOwnerChange(d));
 const traffic = new Traffic(scene, 14);
 const player = new Player(scene);
 const spawnPoint = () => {
@@ -89,7 +93,7 @@ const zoneMarkers = districts.map((d) => {
 
 const state = { mode: 'menu', deadT: 0 };
 const war = new War({
-  districts, enemies, hud,
+  districts, enemies, hud, graffiti,
   onWin: (kind) => endGame(kind),
   onLose: () => endGame('lose'),
 });
@@ -104,12 +108,23 @@ addEventListener('keydown', (e) => {
   if (KEYS[e.code]) { input[KEYS[e.code]] = true; e.preventDefault(); }
   if (state.mode !== 'play' || e.repeat) return;
   if (e.code === 'KeyF') toggleCar();
+  if (e.code === 'Digit1') setWeapon('pistol');
+  if (e.code === 'Digit2') setWeapon('spray');
   if (e.code === 'KeyR') throwGrenade();
 });
 addEventListener('keyup', (e) => { if (KEYS[e.code]) input[KEYS[e.code]] = false; });
 addEventListener('mousedown', (e) => { if (e.button === 0) input.fire = true; });
 addEventListener('mouseup', (e) => { if (e.button === 0) input.fire = false; });
 canvas.addEventListener('click', () => { if (state.mode === 'play' && !document.pointerLockElement) canvas.requestPointerLock?.(); });
+
+addEventListener('wheel', () => { if (state.mode === 'play') setWeapon(weapon === 'pistol' ? 'spray' : 'pistol'); });
+
+// Оружие: пистолет и баллончик.
+let weapon = 'pistol';
+function setWeapon(w) {
+  weapon = w;
+  hud.setWeapon(w);
+}
 
 let camYaw = 0, camPitch = 0.05;
 addEventListener('mousemove', (e) => {
@@ -166,6 +181,20 @@ function shoot() {
     fx.spark(end, hit.head ? 0xff4040 : 0xffd27a);
     if (enemies.damage(hit.e, hit.head ? 50 : 25)) onKill(hit.e);
   }
+}
+
+function sprayPaint(dt) {
+  camera.getWorldDirection(camDir);
+  const muzzle = player.position.clone().add(new THREE.Vector3(Math.sin(player.heading) * 0.8, 1.6, Math.cos(player.heading) * 0.8));
+  const tag = graffiti.spray(dt, camera.position, camDir, player.position, muzzle);
+  if (!tag) return;
+  war.reach += 5;
+  war.addMoney(25);
+  const total = graffiti.inDistrict(tag.d).length, green = graffiti.greenCount(tag.d);
+  const need = Math.ceil(total / 2);
+  hud.toast(green >= need && green - 1 < need
+    ? `Граффити ${green}/${total} · ${BANKS[tag.d.owner].name} заметил вас!`
+    : `Граффити ${green}/${total} · Охваты +5`, BANKS.green.css);
 }
 
 function onKill(e) {
@@ -249,7 +278,8 @@ document.getElementById('play').addEventListener('click', () => {
   document.getElementById('start').classList.add('hidden');
   state.mode = 'play';
   canvas.requestPointerLock?.();
-  hud.alert('Захвати районы конкурентов!', BANKS.green.css);
+  hud.alert('Перекрась граффити конкурентов!', BANKS.green.css);
+  setWeapon('pistol');
 });
 document.getElementById('again').addEventListener('click', () => location.reload());
 
@@ -323,7 +353,9 @@ function step(dt) {
       if (d < 2.3 && d > 1e-3) player.position.addScaledVector(_v.normalize(), 2.3 - d);
     }
     fireCd -= dt;
-    if (input.fire && fireCd <= 0) shoot();
+    if (input.fire && weapon === 'pistol' && fireCd <= 0) shoot();
+    if (input.fire && weapon === 'spray') sprayPaint(dt);
+    else graffiti.current = null;
   }
   for (const c of cars) if (c !== vehicle) c.update(dt, null, colliders);
 
@@ -342,10 +374,13 @@ function step(dt) {
   hud.setHp(player.hp, player.maxHp);
   hud.setSpeed(vehicle ? vehicle.speed : 0, !!vehicle);
   hud.setCrosshair(!vehicle);
+  hud.setSpray(!vehicle && weapon === 'spray' && graffiti.current ? graffiti.current.progress : null);
   hud.setArrow(actor.position, war.target, camYaw);
   const nearCar = !vehicle && (cars.some((c) => c.position.distanceTo(player.position) < 4.5) || traffic.cars.some((c) => c.mesh.position.distanceTo(player.position) < 5));
   hud.setHint(vehicle ? 'WASD — ехать · Пробел — ручник · F — выйти'
-    : nearCar ? 'F — сесть / угнать' : 'ЛКМ — огонь · R — «Ключевая ставка» ($150) · Shift — бег');
+    : nearCar ? 'F — сесть / угнать'
+    : weapon === 'spray' ? 'ЛКМ на чужом граффити — перекрасить · 1 — пистолет'
+    : 'ЛКМ — огонь · 2 — баллончик · R — «Ключевая ставка» ($150)');
 }
 
 function updateZones(t) {
@@ -376,7 +411,7 @@ function frame() {
   mapTimer -= dt;
   if (mapTimer <= 0) {
     mapTimer = 0.05;
-    hud.drawMap((vehicle || player).position, camYaw, colliders, districts, enemies.list, war.target);
+    hud.drawMap((vehicle || player).position, camYaw, colliders, districts, enemies.list, war.target, graffiti.tags);
   }
   retro.render(scene, camera);
   requestAnimationFrame(frame);
@@ -385,7 +420,8 @@ frame();
 
 // Хук для автотестов и отладки.
 window.__game = {
-  colliders, districts, enemies, traffic, war, player, cars, input, state, hurt, fx,
+  colliders, districts, enemies, traffic, war, player, cars, input, state, hurt, fx, graffiti,
+  get weapon() { return weapon; },
   get vehicle() { return vehicle; },
   get camYaw() { return camYaw; },
   aim(yaw, pitch = 0) { camYaw = yaw; camPitch = pitch; },

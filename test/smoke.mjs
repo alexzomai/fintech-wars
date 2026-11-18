@@ -80,10 +80,32 @@ const eh = await g(() => ({ hp: window.__testEnemy.hp, dead: window.__testEnemy.
 check(eh.dead || eh.hp < 40, `стрельба попадает (hp врага ${eh.hp}${eh.dead ? ', убит' : ''})`);
 await shot('2-shooting');
 
-// Захват красного района: телепорт в круг, затем добиваем волны.
+// Граффити: подходим к красному тегу и держим ЛКМ с баллончиком.
+const tag = await g(() => {
+  const c = window.__game, t = c.graffiti.tags.find((x) => x.d.k === 1 && x.owner === 'red');
+  window.__tag = t;
+  c.player.position.copy(t.pos).addScaledVector(t.normal, 2.5).setY(0);
+  return { x: t.pos.x, z: t.pos.z, total: c.graffiti.inDistrict(t.d).length };
+});
+check(tag.total >= 4, `в районе есть теги конкурента (${tag.total})`);
+await page.keyboard.press('Digit2');
+check(await g(() => window.__game.weapon === 'spray'), 'баллончик выбирается клавишей 2');
+await aimAt(tag.x, 2.6, tag.z);
+await page.mouse.down();
+await page.waitForTimeout(1000);
+await shot('3a-spraying');
+await page.waitForTimeout(2500);
+await page.mouse.up();
+check(await g(() => window.__tag.owner === 'green'), 'тег перекрашен баллончиком в зелёный');
+await page.keyboard.press('Digit1');
+
+// Без половины граффити война не начинается.
 await g(() => { const c = window.__game; c.player.position.copy(c.districts[1].zone); c.player.position.x += 3; });
 await page.waitForTimeout(500);
-check(await g(() => window.__game.war.capture?.d.k === 1), 'вход в круг запускает поглощение');
+check(await g(() => !window.__game.war.capture), 'без граффити рекламная война не стартует');
+await g(() => { const c = window.__game; c.graffiti.inDistrict(c.districts[1]).forEach((t) => c.graffiti.setTag(t, 'green')); });
+await page.waitForTimeout(500);
+check(await g(() => window.__game.war.capture?.d.k === 1), 'после граффити вход в круг запускает войну');
 let waves = 0, shotWave = false;
 for (let i = 0; i < 80; i++) {
   const st = await g(() => {

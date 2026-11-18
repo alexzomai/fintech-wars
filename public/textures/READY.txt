@@ -10,3 +10,4 @@ facade_glass.png — 512x512 — OpenAI ImageGen (c0f13c9d-4c01-4a63-a508-242da9
 billboard_green.png — 1024x512 — OpenAI ImageGen (5a4e2860-b1b3-4627-98d0-98bc49a537f3) — название и слоган сверены визуально
 billboard_red.png — 1024x512 — OpenAI ImageGen (fc17a335-9ad2-4361-be48-03bc461e68e1) — название и слоган сверены визуально
 billboard_yellow.png — 1024x512 — OpenAI ImageGen (e0978843-85f0-441f-829a-cd1a444274fa) — название и слоган сверены визуально
+graffiti ready

@@ -74,6 +74,7 @@ const tint = (bank, k = 0.35) => new THREE.Color(0xffffff).lerp(new THREE.Color(
 export function buildCity(scene) {
   const rand = rng(1337);
   const colliders = []; // AABB {minX,maxX,minZ,maxZ,maxY}
+  const walls = []; // наружные стены домов для граффити: {district, pos, normal}
   const size = N * CELL + ROAD;
 
   const asphalt = new THREE.MeshStandardMaterial({ color: 0x4a4c50, roughness: 0.95 });
@@ -196,7 +197,13 @@ export function buildCity(scene) {
           // Обычная застройка ниже башен, чтобы силуэт Сити читался издалека.
           const h = 8 + Math.floor(rand() * 3) * 8 + (rand() < 0.15 ? 8 : 0);
           const kind = h <= 16 ? 'brick' : 'concrete';
-          addBuilding(x0 + a * lot + lot / 2, z0 + b * lot + lot / 2, w, h, d, kind, district);
+          const bx = x0 + a * lot + lot / 2, bz = z0 + b * lot + lot / 2;
+          addBuilding(bx, bz, w, h, d, kind, district);
+          // Стена, выходящая на улицу (наружу квартала), — кандидат под граффити.
+          const sx = a ? 1 : -1, sz = b ? 1 : -1;
+          walls.push(rand() < 0.5
+            ? { district, pos: new THREE.Vector3(bx + sx * w / 2, 0, bz), normal: new THREE.Vector3(sx, 0, 0) }
+            : { district, pos: new THREE.Vector3(bx, 0, bz + sz * d / 2), normal: new THREE.Vector3(0, 0, sz) });
         }
       }
     }
@@ -232,12 +239,16 @@ export function buildCity(scene) {
   colliders.push({ minX: edge, maxX: edge + 5, minZ: -edge - 5, maxZ: edge + 5, maxY: 200 });
 
   districts.forEach((d) => setOwner(d, d.owner));
-  return { colliders, districts, size };
+  return { colliders, districts, size, walls };
 }
 
 // Перекраска района: плитка, неон крыш, билборд.
+// Подписчики на смену владельца района (граффити, радио и т. п.).
+export const ownerListeners = [];
+
 export function setOwner(d, owner) {
   d.owner = owner;
+  ownerListeners.forEach((f) => f(d));
   d.baseMat.color.copy(tint(owner));
   d.neonMat.color.set(BANKS[owner].color);
   d.boardMat.map = null;
