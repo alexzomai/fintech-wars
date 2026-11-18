@@ -13,8 +13,8 @@ export const roadCoord = (i) => i * CELL - HALF;
 
 export const BANKS = {
   green: { color: 0x2ecc59, css: '#2ecc59', name: 'Сбережёнка', emoji: '🟢' },
-  red: { color: 0xe8423a, css: '#e8423a', name: 'Алый Капитал', emoji: '🔴' },
-  yellow: { color: 0xf5c518, css: '#f5c518', name: 'ЖЁЛТ', emoji: '🟡' },
+  red: { color: 0xe8423a, css: '#e8423a', name: 'Алый-банк', emoji: '🔴' },
+  yellow: { color: 0xf5c518, css: '#f5c518', name: 'Тёплый-Банк', emoji: '🟡' },
 };
 // Стилизованный Москва-Сити. Север — к −Z, запад — к −X. Река на юге и востоке.
 // Районы: 0 СЗ, 1 С, 2 СВ, 3 ЮЗ, 4 Ю, 5 ЮВ.
