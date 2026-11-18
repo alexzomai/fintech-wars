@@ -5,6 +5,9 @@ import { Stunts } from './stunts.js';
 import { Car } from './car.js';
 import { Player } from './player.js';
 import { Traffic } from './traffic.js';
+// [v3-models] begin
+import { initProps } from './props.js';
+// [v3-models] end
 import { Enemies } from './enemies.js';
 import { War } from './war.js';
 import { Fx } from './fx.js';
@@ -70,6 +73,9 @@ resize();
 
 // --- Мир ---
 const { colliders, districts, walls } = buildCity(scene);
+// [v3-models] begin
+window.__props = initProps(scene, colliders);
+// [v3-models] end
 const hud = new Hud();
 const fx = new Fx(scene);
 const enemies = new Enemies(scene, fx);
