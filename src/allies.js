@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { BANKS, BLOCK, rayBoxes, resolveCircle, groundAt } from './city.js';
 import { makeHuman, animateHuman } from './humans.js';
-import { speechSprite } from './npc.js';
+import { speechSprite, bulkUp } from './npc.js';
 
 // Союзники Сбережёнки: амбассадоры (до 4, зовутся на G) и охрана штаба у Евразии.
 
@@ -13,9 +13,10 @@ export const ALLY_TYPES = {
   shooter: { name: 'стрелок', jacket: 0x1f6e3c, cap: false, cd: 0.6, dmg: 14, spread: 0.035, range: 30 },
   rifle: { name: 'автоматчик', jacket: 0x155a30, cap: true, cd: 0.14, dmg: 6, spread: 0.06, range: 34 },
   medic: { name: 'медик', jacket: 0xe8f4ec, cap: false, cd: 1.0, dmg: 9, spread: 0.05, range: 24, heal: 6 },
+  tank: { name: 'качок-танк', jacket: 0x1f6e3c, cap: false, cd: 0.8, dmg: 16, spread: 0.05, range: 20, tank: true, hp: 300 },
   guard: { name: 'охрана', jacket: 0x0f3d22, cap: true, cd: 0.5, dmg: 12, spread: 0.04, range: 32 },
 };
-const ORDER = ['shooter', 'rifle', 'medic', 'shooter'];
+const ORDER = ['shooter', 'rifle', 'medic', 'tank'];
 // Слоты построения за спиной игрока: [вправо, вперёд].
 const SLOTS = [[-1.8, -2], [1.8, -2], [-1.6, -4.2], [1.6, -4.2]];
 const triGeo = new THREE.ConeGeometry(0.22, 0.35, 3).rotateX(Math.PI);
@@ -35,12 +36,23 @@ export class Allies {
   make(type, pos) {
     const T = ALLY_TYPES[type];
     const h = makeHuman({ jacket: T.jacket, accent: BANKS.green.color, pants: 0x22252c, cap: T.cap });
+    if (T.tank) bulkUp(h);
     const tri = new THREE.Mesh(triGeo, triMat);
     tri.position.y = 2.45;
     h.root.add(tri);
     h.root.position.copy(pos).setY(groundAt(pos.x, pos.z));
     this.scene.add(h.root);
-    return { h, type, T, position: h.root.position, radius: 0.45, cooldown: rnd(0.2, 0.8), target: null, speed: 0, healT: 0, bubble: null, bubbleT: 0, tri };
+    const a = { h, type, T, position: h.root.position, radius: 0.45, cooldown: rnd(0.2, 0.8), target: null, speed: 0, healT: 0, bubble: null, bubbleT: 0, tri };
+    if (T.tank) {
+      // Танк отвлекает огонь врагов на себя; выдохся — отдыхает 8 с.
+      a.hp = T.hp;
+      a.decoy = { position: a.position, active: true, hurt: (dmg) => {
+        a.hp -= dmg; a.h.hitT = 1;
+        if (a.hp <= 0) { a.decoy.active = false; a.restT = 8; this.say(a, 'Братан, я выдохся!'); }
+      } };
+      this.enemies.decoys.push(a.decoy);
+    }
+    return a;
   }
 
   spawnGuards() {
@@ -84,7 +96,9 @@ export class Allies {
     const pos = best.position.clone();
     const h = this.npcs.release(best);
     this.scene.remove(h.root);
-    const type = ORDER[this.list.length % ORDER.length];
+    const hasTank = this.list.some((x) => x.type === 'tank');
+    let type = best.type === 'jock' && !hasTank ? 'tank' : ORDER[this.list.length % ORDER.length];
+    if (type === 'tank' && hasTank) type = 'shooter';
     const a = this.make(type, pos);
     a.h.root.rotation.y = h.root.rotation.y;
     a.slot = this.list.length;
@@ -94,7 +108,10 @@ export class Allies {
     return a;
   }
 
-  dismissAll() { this.list.forEach((a) => this.scene.remove(a.h.root)); this.list = []; }
+  dismissAll() {
+    this.list.forEach((a) => { this.scene.remove(a.h.root); if (a.decoy) this.enemies.decoys.splice(this.enemies.decoys.indexOf(a.decoy), 1); });
+    this.list = [];
+  }
 
   // Ближайший враг в зоне видимости.
   findTarget(a, range) {
@@ -159,6 +176,10 @@ export class Allies {
 
     for (const a of this.list) {
       if (a.bubble && (a.bubbleT -= dt) <= 0) { a.h.root.remove(a.bubble); a.bubble = null; }
+      if (a.decoy) {
+        a.decoy.active = !this.inCar && a.hp > 0;
+        if (a.restT > 0 && (a.restT -= dt) <= 0) a.hp = a.T.hp;
+      }
       if (this.inCar) { a.position.copy(vehicle.position); continue; }
       a.tri.rotation.y += dt * 3;
       // Слот построения относительно направления игрока.

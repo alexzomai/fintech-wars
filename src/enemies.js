@@ -3,7 +3,7 @@ import { BANKS, resolveCircle, rayBoxes, roadCoord, HALF, CELL } from './city.js
 import { makeHuman, animateHuman } from './humans.js';
 import { makeCarMesh } from './car.js';
 import { enableSnap } from './retro.js';
-import { speechSprite } from './npc.js';
+import { speechSprite, bulkUp } from './npc.js';
 
 const _v = new THREE.Vector3();
 const _d = new THREE.Vector3();
@@ -21,6 +21,8 @@ export const ENEMY_TYPES = {
   // 🟡 Тёплый-Банк
   courier: { hp: 28, speed: 8.5, scale: 0.95, jacket: 0xffb300, dmg: [6, 9], cd: 0.8, melee: true, cap: true, scooter: true },
   seller: { hp: 35, speed: 5.5, scale: 1, jacket: 0xfff0b0, pants: 0x6b5a3a, cd: 3, seller: true },
+  // Служба безопасности (качки в цвете банка): охрана штабов и юрлиц.
+  security: { hp: 160, speed: 3, scale: 1.15, jacket: null, dmg: [16, 22], cd: 1.1, melee: true, jock: true },
   sysadmin: { hp: 40, speed: 3.5, scale: 1, jacket: 0x3b4a5a, pants: 0x2a3340, dmg: [4, 6], cd: 1.4, sysadmin: true },
 };
 export const BANK_TYPES = { red: ['collector', 'broker', 'broker', 'thug'], yellow: ['courier', 'seller', 'sysadmin', 'courier'], green: ['grunt'] };
@@ -50,6 +52,7 @@ export class Enemies {
     this.groups = [];
     this.playerSlowT = 0; // «страховка» менеджера тёплых продаж
     this.onShot = null; // (pos) => void — выстрел врага (паника мирных)
+    this.decoys = []; // [{ position, hurt(dmg, from), active }] — союзные «танки», отвлекающие огонь
     this._prev = null;
   }
 
@@ -57,7 +60,9 @@ export class Enemies {
   spawn(pos, bank, { tag = null, aggro = false, boss = false, type = 'grunt' } = {}) {
     const T = ENEMY_TYPES[type] || ENEMY_TYPES.grunt;
     const scale = boss ? 1.35 : T.scale;
-    const h = makeHuman({ accent: BANKS[bank].color, jacket: boss ? 0x111111 : T.jacket, pants: T.pants, cap: T.cap, scale });
+    const jacket = T.jacket ?? new THREE.Color(BANKS[bank].color).multiplyScalar(0.6).getHex();
+    const h = makeHuman({ accent: BANKS[bank].color, jacket: boss ? 0x111111 : jacket, pants: T.pants, cap: T.cap, scale });
+    if (T.jock) { bulkUp(h); h.armR.hand.remove(h.gun); h.gun = new THREE.Object3D(); }
     if (T.bat) { h.gun.visible = false; h.gun = new THREE.Mesh(PROP.bat, propMat(0x6b4a2a)); h.armR.hand.add(h.gun); }
     if (T.seller) { h.armR.hand.remove(h.gun); h.gun = new THREE.Object3D(); const p = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.3, 0.02), propMat(0xffffff)); p.position.set(0, -0.1, 0.06); h.armR.hand.add(p); }
     if (T.scooter) {
@@ -255,15 +260,22 @@ export class Enemies {
       }
       if (e.frozen) { animateHuman(e.h, dt, { speed: 0 }); continue; } // для тестов и катсцен
       const T = e.T;
+      // Танк-приманка ближе игрока (и в 14 м) — бьём его.
+      let ectx = ctx;
+      for (const dc of this.decoys) {
+        if (!dc.active) continue;
+        const dd = Math.hypot(dc.position.x - e.position.x, dc.position.z - e.position.z);
+        if (dd < 14 && dd < Math.hypot(ctx.target.x - e.position.x, ctx.target.z - e.position.z)) { ectx = { ...ctx, target: dc.position, hurt: dc.hurt, decoy: true }; break; }
+      }
       const slow = e.slowT > 0 ? 0.3 : 1;
       e.slowT -= dt;
       e.swingT = Math.max(0, e.swingT - dt * 3);
-      _d.subVectors(ctx.target, e.position).setY(0);
+      _d.subVectors(ectx.target, e.position).setY(0);
       const dist = _d.length();
-      if (!e.aggro && ctx.targetAlive && dist < (e.group ? 22 : 32)) e.aggro = true;
+      if (!e.aggro && ectx.targetAlive && dist < (e.group ? 22 : 32)) e.aggro = true;
 
       let mx = 0, mz = 0;
-      if (e.aggro && ctx.targetAlive) {
+      if (e.aggro && ectx.targetAlive) {
         _d.normalize();
         e.h.root.rotation.y = Math.atan2(_d.x, _d.z);
         const sp = (e.boss ? 3.2 : T.speed) * slow;
@@ -275,10 +287,10 @@ export class Enemies {
           if (dist < reach + 0.4 && e.cooldown <= 0) {
             e.cooldown = T.cd * rnd(0.85, 1.2);
             e.swingT = 1;
-            if (T.seller) {
+            if (T.seller && !ectx.decoy) {
               this.playerSlowT = 2.5; this.slowHits = (this.slowHits || 0) + 1;
               this.say(e, pick(SELLER_LINES));
-            } else ctx.hurt(Math.round(rnd(...T.dmg)), e);
+            } else if (T.dmg) ectx.hurt(Math.round(rnd(...T.dmg)), e);
           }
         } else {
           e.strafeT -= dt;
@@ -289,7 +301,7 @@ export class Enemies {
           if (T.sysadmin && !e.turretPlaced && dist < 30) { e.turretPlaced = true; this.placeTurret(e); this.say(e, 'Перезагрузите игрока'); }
           if (e.cooldown <= 0 && dist < 45) {
             e.cooldown = (e.boss ? 0.5 : T.cd) + Math.random() * 0.6;
-            this.shoot(e, ctx, dist);
+            this.shoot(e, ectx, dist);
           }
         }
       } else if (e.group && !e.group.aggro) {

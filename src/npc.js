@@ -44,6 +44,51 @@ export function speechSprite(text, color = '#111') {
   return s;
 }
 
+export const BANK_OF = { green: 'Сбережёнки', red: 'Алого-банка', yellow: 'Тёплого-Банка' };
+
+// Подпись-табличка без хвостика (над головой или на спине).
+const labelCache = new Map();
+function labelTex(text, bg, fg, w = 512, h = 64, font = 18) {
+  const key = [text, bg, fg, w, h].join('|');
+  if (labelCache.has(key)) return labelCache.get(key);
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  g.font = `${font}px "Press Start 2P", monospace`;
+  g.fillStyle = bg;
+  const tw = Math.min(w - 4, g.measureText(text).width + 24);
+  g.fillRect((w - tw) / 2, 4, tw, h - 8);
+  g.fillStyle = fg; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(text, w / 2, h / 2 + 1);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.magFilter = THREE.NearestFilter;
+  labelCache.set(key, tex);
+  return tex;
+}
+export function labelSprite(text, color = '#fff') {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTex(text, 'rgba(0,0,0,0.6)', color), depthWrite: false, fog: false }));
+  s.scale.set(3, 0.38, 1);
+  s.renderOrder = 9;
+  return s;
+}
+
+// Качок: широкие плечи, маленькая голова, майка (руки голые).
+export function bulkUp(h, k = 1) {
+  const chest = h.torso.children[0];
+  chest.scale.set(1 + 0.6 * k, 1 + 0.08 * k, 1 + 0.3 * k);
+  for (const a of [h.armL, h.armR]) {
+    a.shoulder.position.x *= 1 + 0.55 * k;
+    a.shoulder.scale.set(1 + 0.5 * k, 1, 1 + 0.5 * k);
+    const skin = h.head.children[0].material;
+    a.shoulder.children[0].material = skin;
+    a.elbow.children[0].material = skin;
+  }
+  h.head.scale.setScalar(1 - 0.3 * k);
+  h.head.position.y -= 0.05 * k;
+  return h;
+}
+
 const LINES = {
   any: ['Алый звонил мне 40 раз', 'Опять кэшбэк урезали…', 'Ипотека до 2077 года', 'Я на созвоне!', 'Где тут банкомат?',
     'Тёплый-Банк, только не это', 'Мне одобрили, а я не просил', 'Курс опять вырос?'],
@@ -54,6 +99,8 @@ const LINES = {
   tourist: ['Какие башни!', 'Сфоткай меня у Евразии!'],
   courier: ['Заказ на 42 этаж…', 'Опаздываю!'],
   phone: ['Алло? Нет, мне не нужен кредит', 'Да, я в Сити', 'Перезвоню!'],
+  jock: ['Братан, подстрахуй', 'Вклад в себя — лучший вклад', 'Сегодня день ног', 'Протеин дороже кредита'],
+  corp: ['У меня совещание', 'Где мой юрист?', 'Овернайт под 18%…', 'Отчётность горит'],
   panic: ['А-а-а!', 'Помогите!', 'Мои вклады!', 'Стреляют!', 'Звоните в ЦБ!'],
 };
 
@@ -63,6 +110,7 @@ const PROPS = {
   coffee: () => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.035, 0.13, 6), propMat(0xf2f2f2)); m.position.set(0, -0.08, 0.05); return ['handR', m]; },
   box: () => { const m = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.45, 0.35), propMat(0x2ec4b6)); m.position.set(0, 0.32, -0.32); return ['torso', m]; },
   camera: () => { const m = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.1, 0.08), propMat(0x111111)); m.position.set(0, -0.08, 0.06); return ['handR', m]; },
+  case: () => { const m = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.3, 0.4), propMat(0x3a2414)); m.position.set(0, -0.2, 0); return ['handR', m]; },
   bag: () => { const m = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.24, 0.12), propMat(0x5a3a2a)); m.position.set(0, -0.2, 0); return ['handR', m]; },
 };
 
@@ -70,6 +118,9 @@ const TYPES = {
   clerk: { w: 4, jackets: [0x2b3a55, 0x3a3a3a, 0x4b4f58, 0x2e2e3e], pants: 0x22252c, speed: [1.3, 1.7], props: ['laptop', 'coffee', null] },
   courier: { w: 2, jackets: [0xff7a1a, 0x2a7bd6], pants: 0x1d1f24, cap: true, speed: [1.9, 2.3], props: ['box'] },
   tourist: { w: 2, jackets: [0xff6fa8, 0x6fd3ff, 0xfff06f, 0xffffff], pants: 0xc9b48a, speed: [1.0, 1.3], props: ['camera'] },
+  jock: { w: 1, jackets: [0x222222, 0xffffff, 0x3a6ea5], pants: 0x2a2a2a, speed: [1.2, 1.5], props: [null], jock: true },
+  corp: { w: 0, jackets: [0x1a1c22, 0x23262e], pants: 0x1a1c22, scale: 2, speed: [0.9, 1.0], props: ['case'], corp: true },
+  pao: { w: 0, jackets: [0x101010], pants: 0x101010, scale: 3, speed: [0.8, 0.8], props: ['case'], corp: true },
   granny: { w: 1, jackets: [0x7a4a6a, 0x5a6a4a, 0x8a6a5a], pants: 0x4a3a4a, scale: 0.86, speed: [0.7, 0.9], props: ['bag'], skin: 0xe8c0a0 },
 };
 const TYPE_BAG = Object.entries(TYPES).flatMap(([k, t]) => Array(t.w).fill(k));
@@ -80,7 +131,7 @@ const rect = (i, j) => {
   const x0 = roadCoord(i) + ROAD / 2 + INSET, z0 = roadCoord(j) + ROAD / 2 + INSET;
   return [x0, z0, x0 + SIDE, z0 + SIDE];
 };
-function perimPoint(i, j, s, out) {
+export function perimPoint(i, j, s, out) {
   const [x0, z0, x1, z1] = rect(i, j);
   s = ((s % PERIM) + PERIM) % PERIM;
   if (s < SIDE) return out.set(x0 + s, 0, z0);
@@ -89,7 +140,7 @@ function perimPoint(i, j, s, out) {
   return out.set(x0, 0, z1 - (s - 3 * SIDE));
 }
 // Ближайшая точка периметра → s.
-function perimParam(i, j, x, z) {
+export function perimParam(i, j, x, z) {
   const [x0, z0, x1, z1] = rect(i, j);
   const cx = Math.max(x0, Math.min(x1, x)), cz = Math.max(z0, Math.min(z1, z));
   const d = [cz - z0, x1 - cx, z1 - cz, cx - x0];
@@ -100,6 +151,9 @@ export const blockAt = (x, z) => [clampI(Math.floor((x + HALF - ROAD / 2) / CELL
 // Углы периметра: 0 (x0,z0), 1 (x1,z0), 2 (x1,z1), 3 (x0,z1).
 const CORNER_SX = [-1, 1, 1, -1], CORNER_SZ = [-1, -1, 1, 1];
 const cornerOf = (sx, sz) => (sz < 0 ? (sx < 0 ? 0 : 1) : (sx < 0 ? 3 : 2));
+
+const CORP_NAMES = ['ООО «Ромашка»', 'ИП Петров', 'АО «Вектор»', 'ООО «Рога и копыта»', 'ИП Сидорова', 'ЗАО «Дебет»'];
+const PAO_NAMES = ['ПАО «Мега-Холдинг»', 'ПАО «Нефтегазкредит»'];
 
 const _v = new THREE.Vector3();
 const _p = new THREE.Vector3();
@@ -112,6 +166,8 @@ export class Npcs {
     this.max = max;
     this.list = [];
     this.bubbles = 0;
+    this.shake = 0; // тряска камеры от шагов юрлиц (м)
+    this.labeled = null;
     this.filled = false;
     this.spawnT = 0;
     this.onKilled = null; // (npc) => void — сбит машиной
@@ -120,7 +176,8 @@ export class Npcs {
   get alive() { return this.list.filter((n) => !n.dead); }
 
   // Новый прохожий. pos — точка (будет притянута к тротуару, если не free).
-  spawnAt(pos, { type = pick(TYPE_BAG), bank = null, free = false } = {}) {
+  spawnAt(pos, { type, bank = null, free = false } = {}) {
+    type ||= pick(TYPE_BAG);
     const T = TYPES[type];
     const d = districtAt(this.districts, pos);
     bank ||= d ? d.owner : 'green';
@@ -130,7 +187,14 @@ export class Npcs {
     const h = makeHuman({ jacket, accent, pants: T.pants, skin: T.skin || pick(SKINS), cap: T.cap, scale: T.scale || 1 });
     h.armR.hand.remove(h.gun);
     h.gun = new THREE.Object3D(); // мирные без оружия (animateHuman трогает h.gun.visible)
-    h.root.traverse((o) => { if (o.isMesh) o.castShadow = false; });
+    if (T.jock) bulkUp(h);
+    let corpName = null;
+    if (T.corp) {
+      corpName = pick(type === 'pao' ? PAO_NAMES : CORP_NAMES);
+      const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 0.14), new THREE.MeshBasicMaterial({ map: labelTex(corpName, '#f2efe6', '#111', 512, 128, 34), side: THREE.FrontSide }));
+      sign.position.set(0, 0.4, -0.215); sign.rotation.y = Math.PI; h.torso.add(sign);
+    }
+    h.root.traverse((o) => { if (o.isMesh) o.castShadow = !!T.corp; });
     const props = [];
     const pk = pick(T.props);
     if (pk) {
@@ -142,7 +206,8 @@ export class Npcs {
     const n = {
       h, type, bank, props, i, j, s: perimParam(i, j, pos.x, pos.z), dir: Math.random() < 0.5 ? 1 : -1,
       walk: rnd(...T.speed), speed: 0, mode: 'walk', modeT: rnd(4, 12), target: null,
-      position: h.root.position, radius: 0.4, dead: false, deadT: 0, talkT: rnd(3, 20), bubble: null, bubbleT: 0, far: false,
+      corpName, scale: T.scale || 1, label: null,
+      position: h.root.position, radius: 0.4 * (T.scale || 1), dead: false, deadT: 0, talkT: rnd(3, 20), bubble: null, bubbleT: 0, far: false,
     };
     if (free) { h.root.position.copy(pos); n.mode = 'idle'; n.modeT = rnd(4, 8); } else perimPoint(i, j, n.s, h.root.position);
     h.root.position.y = groundAt(h.root.position.x, h.root.position.z);
@@ -162,13 +227,19 @@ export class Npcs {
       perimPoint(i, j, perimParam(i, j, x, z), _p);
       const d = Math.hypot(_p.x - center.x, _p.z - center.z);
       if (d < minR || d > maxR + 5) continue;
-      return this.spawnAt(_p);
+      // Юрлица редкие (до 2 в округе), ПАО — одно на город.
+      let type;
+      const corps = this.list.filter((n) => !n.dead && n.type === 'corp').length;
+      if (!this.list.some((n) => !n.dead && n.type === 'pao') && Math.random() < 0.02) type = 'pao';
+      else if (corps < 2 && Math.random() < 0.1) type = 'corp';
+      return this.spawnAt(_p, { type });
     }
     return null;
   }
 
   remove(n) {
     if (n.bubble) this.unsay(n);
+    if (this.labeled === n) this.labeled = null;
     this.scene.remove(n.h.root);
     const i = this.list.indexOf(n);
     if (i >= 0) this.list.splice(i, 1);
@@ -177,6 +248,7 @@ export class Npcs {
   // Отдать человека (например, в амбассадоры): убираем из толпы, модель остаётся в сцене.
   release(n) {
     if (n.bubble) this.unsay(n);
+    if (this.labeled === n) { if (n.label) n.h.root.remove(n.label); this.labeled = null; }
     n.props.forEach((m) => m.parent?.remove(m));
     this.list.splice(this.list.indexOf(n), 1);
     n.h.root.traverse((o) => { if (o.isMesh) o.castShadow = true; });
@@ -187,7 +259,7 @@ export class Npcs {
     if (n.bubble) this.unsay(n);
     n.bubble = speechSprite(text);
     const s = n.h.root.scale.x;
-    n.bubble.position.y = 2.55 / s;
+    n.bubble.position.y = 2.3 + 0.55 / s;
     n.bubble.scale.multiplyScalar(1 / s);
     n.h.root.add(n.bubble);
     n.bubbleT = life;
@@ -225,6 +297,7 @@ export class Npcs {
 
   // ctx: { center: Vector3, vehicle: {position, speed, heading}|null, traffic: [{mesh, speed}], budget }
   update(dt, ctx) {
+    this.time = (this.time || 0) + dt; // игровое время (для тестов)
     const c = ctx.center;
     const want = Math.max(0, Math.min(this.max, ctx.budget ?? this.max));
     const living = this.list.filter((n) => !n.dead).length;
@@ -235,6 +308,27 @@ export class Npcs {
     } else if (living < want && (this.spawnT -= dt) <= 0) {
       this.spawnT = 0.15;
       this.spawnInRing(c, 45, 115);
+    }
+
+    // Подпись над ближайшим прохожим и тряска от шагов юрлиц.
+    let near = null, nd = 7;
+    this.shake = 0;
+    for (const n of this.list) {
+      if (n.dead) continue;
+      const d = Math.hypot(n.position.x - c.x, n.position.z - c.z);
+      if (d < nd * n.scale) { nd = d / n.scale; near = n; }
+      if (n.scale > 1 && d < 30 && n.speed > 0.2) this.shake += (n.scale - 1) * 0.05 * (1 - d / 30) * Math.pow(Math.abs(Math.sin(n.h.phase)), 12);
+    }
+    if (near !== this.labeled) {
+      if (this.labeled?.label) { this.labeled.h.root.remove(this.labeled.label); this.labeled.label = null; }
+      this.labeled = near;
+      if (near) {
+        const text = near.corpName ? `${near.type === 'pao' ? 'ПАО' : 'Юрлицо'} · ${near.corpName}` : `Физлицо · клиент ${BANK_OF[near.bank]}`;
+        near.label = labelSprite(text, BANKS[near.bank].css);
+        near.label.position.y = 2.1;
+        near.label.scale.multiplyScalar(1 / near.scale);
+        near.h.root.add(near.label);
+      }
     }
 
     for (const n of [...this.list]) {
@@ -342,7 +436,7 @@ export class Npcs {
       }
 
       if (far) continue; // дальних не анимируем
-      animateHuman(n.h, dt, { speed: n.speed, run });
+      animateHuman(n.h, dt, { speed: n.speed / n.scale, run });
       if (n.mode === 'phone') {
         // Телефон у уха.
         n.h.armL.shoulder.rotation.x = -2.5; n.h.armL.shoulder.rotation.z = 0.6; n.h.armL.elbow.rotation.x = -2.3;
