@@ -12,6 +12,10 @@ import { Hud } from './hud.js';
 // [v3-weapons] begin
 import { Arsenal } from './weapons.js';
 // [v3-weapons] end
+// [v3-pop] begin
+import { Npcs } from './npc.js';
+import { Allies } from './allies.js';
+// [v3-pop] end
 import { RetroPass, RENDER_SCALE } from './retro.js';
 // [v3-jury] begin
 import { openTagEditor, savedTagCanvas } from './tageditor.js';
@@ -82,6 +86,11 @@ graffiti.place(walls);
 ownerListeners.push((d) => graffiti.onOwnerChange(d));
 const traffic = new Traffic(scene, 14);
 const player = new Player(scene);
+// [v3-pop] begin
+const npcs = new Npcs(scene, { colliders, districts });
+const allies = new Allies(scene, { enemies, npcs, fx, hud, districts, colliders, onKill: (e) => onKill(e) });
+enemies.onShot = (p) => npcs.panic(p, 18);
+// [v3-pop] end
 const spawnPoint = () => {
   const d = districts.find((x) => x.owner === 'green' && x.hq) || districts.find((x) => x.owner === 'green') || districts[0];
   return d.hq ? new THREE.Vector3(d.hq.x + CELL / 2 + 3, 0, d.hq.z) : d.zone.clone();
@@ -135,6 +144,7 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyE') arsenal.cycle(1);
   if (e.code === 'KeyR') throwGrenade();
   // [v3-weapons] end
+  if (e.code === 'KeyG' && !vehicle) allies.recruit(player.position, camera.getWorldDirection(new THREE.Vector3())); // [v3-pop]
 });
 addEventListener('keyup', (e) => { if (KEYS[e.code]) input[KEYS[e.code]] = false; });
 // [v3-weapons] begin — Tab: колесо оружия с замедлением времени
@@ -211,6 +221,14 @@ arsenal.movePickupsNear(spawnPoint());
 const shoot = () => arsenal.shoot();
 const throwGrenade = () => arsenal.throwGrenade();
 // [v3-weapons] end
+// [v3-pop] begin — паника прохожих от выстрелов и взрывов (стрельба живёт в weapons.js)
+{
+  const shootOrig = arsenal.shoot.bind(arsenal);
+  arsenal.shoot = (...a) => { npcs.panic(player.position, 25); return shootOrig(...a); };
+  const blastOrig = fx.blast.bind(fx);
+  fx.blast = (at, r, c) => { npcs.panic(at, 30); return blastOrig(at, r, c); };
+}
+// [v3-pop] end
 
 // --- Урон, смерть, финал ---
 function hurt(dmg) {
@@ -357,6 +375,10 @@ function step(dt) {
   }
   traffic.update(dt, [...cars, ...(vehicle ? [] : [player]), ...traffic.cars]);
   enemies.update(dt, { target: actor.position, targetAlive: true, colliders, hurt });
+  // [v3-pop] begin
+  npcs.update(dt, { center: actor.position, vehicle, traffic: traffic.cars, budget: 80 - enemies.alive().length - allies.count });
+  allies.update(dt, { player, vehicle });
+  // [v3-pop] end
   war.update(dt, actor.position, true);
 
   hud.setHp(player.hp, player.maxHp);
@@ -420,4 +442,5 @@ window.__game = {
   aim(yaw, pitch = 0) { camYaw = yaw; camPitch = pitch; },
   toggleCar, shoot, throwGrenade, cam: camera, renderer, jury,
   neon, pause, // [v3-neon]
+  npcs, allies, // [v3-pop]
 };
