@@ -97,15 +97,57 @@ export const TOWERS = {
   },
 };
 
+// Процедурные текстуры стекла: окна-ячейки 8×8 px, вертикальный закатный градиент-блик,
+// и карта свечения с тёплыми горящими окнами. Создаются один раз и делятся всеми башнями.
+let glassCache = null;
+function glassTextures() {
+  if (glassCache) return glassCache;
+  const W = 64, H = 256, cell = 8;
+  const mk = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; return c; };
+  const a = mk(), b = mk();
+  const g = a.getContext('2d'), e = b.getContext('2d');
+  const grad = g.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, '#b8c8e0'); grad.addColorStop(0.45, '#d8c0d0'); grad.addColorStop(0.8, '#ffd0a8'); grad.addColorStop(1, '#a8a0b8');
+  g.fillStyle = grad; g.fillRect(0, 0, W, H);
+  e.fillStyle = '#000'; e.fillRect(0, 0, W, H);
+  for (let y = 0; y < H; y += cell) {
+    for (let x = 0; x < W; x += cell) {
+      // Стекло ячейки: чуть темнее/светлее, поверх — рама.
+      g.fillStyle = `rgba(10,15,30,${0.08 + Math.random() * 0.2})`;
+      g.fillRect(x + 1, y + 1, cell - 2, cell - 2);
+      if (Math.random() < 0.09) { e.fillStyle = Math.random() < 0.5 ? '#ffcf8a' : '#ffe9c0'; e.fillRect(x + 1, y + 1, cell - 2, cell - 2); }
+    }
+  }
+  g.fillStyle = '#2a2e3a';
+  for (let y = 0; y < H; y += cell) g.fillRect(0, y, W, 1);
+  for (let x = 0; x < W; x += cell) g.fillRect(x, 0, 1, H);
+  const tex = (c) => {
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.magFilter = THREE.NearestFilter;
+    t.minFilter = THREE.NearestMipmapLinearFilter;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(2, 3);
+    return t;
+  };
+  glassCache = { map: tex(a), lit: tex(b) };
+  return glassCache;
+}
+
 // Контекст постройки башни в центре квартала (cx, cz).
 // part(geo, mat, dx, y0, dz, sx, h, sz, rotY, lying): тело от высоты y0 вверх на h.
 // Для цилиндров sx/sz — радиусы, для боксов — размеры.
 export function towerContext(scene, cx, cz, district, texInto) {
   return {
     glass(color) {
+      // Стеклянная навесная стена: тёмная сетка окон с закатным бликом, часть окон светится.
       // Без тумана: башни Сити горят своими цветами сквозь дымку — главный силуэт карты.
-      const m = new THREE.MeshStandardMaterial({ color, metalness: 0.35, roughness: 0.35, fog: false, emissive: color, emissiveIntensity: 0.12 });
-      texInto(m, '/textures/facade_glass.png', 3, 14, true);
+      const { map, lit } = glassTextures();
+      const m = new THREE.MeshStandardMaterial({
+        color, map, emissiveMap: lit,
+        emissive: 0xffb36b, emissiveIntensity: 0.8, metalness: 0.1, roughness: 0.3, fog: false,
+      });
+      m.userData.glass = true; // ночью окна разгораются сильнее
       return m;
     },
     concrete(color) { return new THREE.MeshStandardMaterial({ color, roughness: 0.95 }); },
