@@ -44,7 +44,7 @@ export function initPauseMenu({ state, districts, war, graffiti, colliders, inpu
   menu.id = 'saMenu';
   menu.innerHTML = `<div class="wrap"><h1>ФИНТЕХ-ВОЙНЫ</h1><p class="sub">СИТИ-2049 · ВОЙНА ЗА ВНИМАНИЕ</p>
     <div class="list"></div><div class="note"></div></div>
-    <div class="keys">↑↓ — выбор · Enter — подтвердить · WASD — ход · ЛКМ — огонь · 1/2 — пистолет/баллончик · F — машина · R — граната · N — ночь · Esc/M — карта</div>`;
+    <div class="keys">↑↓ — выбор · Enter — подтвердить · WASD — ход · ЛКМ — огонь · R — перезарядка · G — граната · 1–9/Tab — оружие · E — действие · F — машина · Q — радио · N — ночь · P — сторис · Esc/M — карта</div>`;
   document.body.appendChild(menu);
   const list = menu.querySelector('.list'), note = menu.querySelector('.note');
   if (start) start.style.display = 'none';

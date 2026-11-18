@@ -185,12 +185,12 @@ await shot('4-captured');
 await g(() => { window.__game.player.hp = 100; });
 const m0 = await g(() => window.__game.war.money);
 await g(() => { const c = window.__game; c.aim(c.camYaw, -0.3); });
-await page.keyboard.press('KeyR');
+await page.keyboard.press('KeyG');
 await page.waitForTimeout(50);
 // Деньги сразу после броска: через пару секунд их маскирует доход с районов.
 const gr = await g(() => window.__game.war.money);
 const blasts = await g(() => new Promise((r) => setTimeout(() => r(window.__game.fx.items.length), 2500)));
-check(m0 >= 150 && gr === m0 - 150, `граната «Дефолт» (R) стоит $150 ($${m0} → $${gr})`);
+check(m0 >= 150 && gr === m0 - 150, `граната «Дефолт» (G) стоит $150 ($${m0} → $${gr})`);
 
 // Угон машины из трафика.
 const t0 = await g(() => {

@@ -188,12 +188,14 @@ export class Arsenal {
   }
 
   hint() {
-    const d = this.def;
-    if (d.spray) return 'ЛКМ на чужом граффити — перекрасить · Q/E, 1–5 — оружие · Tab — колесо';
-    if (d.melee) return 'ЛКМ — удар · Q/E, 1–5 — оружие · Tab — колесо · R — «Дефолт» ($150)';
-    if (d.thrown) return 'ЛКМ — бросить · Q/E, 1–5 — оружие · Tab — колесо';
-    return 'ЛКМ — огонь · Q/E, 1–5 — оружие · Tab — колесо · R — «Дефолт» ($150)';
+    const d = this.def, keys = 'колесо мыши, ~1~–~5~, ~Tab~ — оружие · ~G~ — «Дефолт» ($150)';
+    if (d.spray) return `~ЛКМ~ на чужом граффити — перекрасить · ${keys}`;
+    if (d.melee) return `~ЛКМ~ — удар · ${keys}`;
+    if (d.thrown) return `~ЛКМ~ — бросить · ${keys}`;
+    return `~ЛКМ~ — огонь · ~R~ — перезарядка · ${keys}`;
   }
+  // R — перезарядка вручную.
+  manualReload() { if (!this.ctx.getVehicle()) this.startReload(); }
 
   // --- Огнестрел ---
   shoot() {
@@ -286,7 +288,7 @@ export class Arsenal {
   }
 
   // --- Граната «Дефолт»: взрыв с уроном, выжившие в радиусе замедлены на 5 с («счета заморожены») ---
-  // R — быстрый бросок за $150 (как раньше); слот 4 — бросок ЛКМ из запаса.
+  // G — быстрый бросок за $150; слот 4 — бросок ЛКМ из запаса.
   throwGrenade() {
     const { war, hud } = this.ctx;
     if (this.ctx.getVehicle()) return false;

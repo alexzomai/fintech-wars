@@ -18,6 +18,7 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'} ${msg}`); if (
 const g = (fn, arg) => page.evaluate(fn, arg);
 const cur = () => g(() => window.__game.weapon);
 const press = async (k) => { await page.keyboard.press(k); await page.waitForTimeout(60); };
+const wheel = async (dy) => { await page.mouse.move(640, 360); await page.mouse.wheel(0, dy); await page.waitForTimeout(100); };
 
 await page.goto(GAME_URL);
 await page.waitForFunction(() => window.__game);
@@ -30,19 +31,19 @@ await page.waitForTimeout(300);
 
 // Переключение.
 check(await cur() === 'pistol', 'старт с пистолетом');
-await press('KeyE'); check(await cur() === 'smg', 'E → автомат');
-await press('KeyE'); check(await cur() === 'grenade', 'E → граната');
-await press('KeyQ'); check(await cur() === 'smg', 'Q → автомат');
+await wheel(120); check(await cur() === 'smg', 'колесо вниз → автомат');
+await wheel(120); check(await cur() === 'grenade', 'колесо вниз → граната');
+await wheel(-120); check(await cur() === 'smg', 'колесо вверх → автомат');
 await press('Digit1'); check(await cur() === 'fists', '1 → кулаки');
 await press('Digit5'); check(await cur() === 'spray', '5 → баллончик');
-await press('KeyE'); check(await cur() === 'fists', 'E по кругу: баллончик → кулаки');
+await wheel(120); check(await cur() === 'fists', 'по кругу: баллончик → кулаки');
+await press('KeyQ'); await press('KeyE'); check(await cur() === 'fists', 'Q/E оружие не листают');
 await g(() => { window.__game.arsenal.ammo.grenade.mag = 0; });
-await press('Digit3'); await press('KeyE');
+await press('Digit3'); await wheel(120);
 check(await cur() === 'spray', 'граната без запаса пропускается (автомат → баллончик)');
 await press('Digit4'); check(await cur() === 'spray', 'пустую гранату цифрой не выбрать');
 await g(() => { window.__game.arsenal.ammo.grenade.mag = 2; });
-await page.mouse.move(640, 360);
-await page.mouse.wheel(0, 120); await page.waitForTimeout(80);
+await wheel(120);
 check(await cur() === 'fists', 'колесо мыши листает');
 
 // Расход патронов.
@@ -62,6 +63,12 @@ check(rl > 0, `пустая обойма → перезарядка (${rl.toFixe
 await page.waitForTimeout(1400);
 const a2 = await g(() => ({ ...window.__game.arsenal.ammo.pistol }));
 check(a2.mag === 12 && a2.res === a1.res - 12, `после перезарядки ${a2.mag}-${a2.res}`);
+
+// Ручная перезарядка на R.
+await g(() => { window.__game.arsenal.ammo.pistol.mag = 5; });
+await press('KeyR');
+check(await g(() => window.__game.arsenal.reloadT > 0), 'R — перезарядка');
+await page.waitForTimeout(1400);
 
 // Кулаки.
 const punched = await g(() => {

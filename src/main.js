@@ -131,9 +131,10 @@ addEventListener('keydown', (e) => {
   if ((e.code === 'ControlLeft' || e.code === 'ControlRight') && !vehicle) { e.preventDefault(); player.roll(); }
   // [v3-weapons] begin
   if (/^Digit[1-9]$/.test(e.code)) arsenal.selectSlot(+e.code.slice(5));
-  if (e.code === 'KeyQ') arsenal.cycle(-1);
-  if (e.code === 'KeyE') arsenal.cycle(1);
-  if (e.code === 'KeyR') throwGrenade();
+  if (e.code === 'KeyR') arsenal.manualReload();
+  if (e.code === 'KeyG') throwGrenade();
+  if (e.code === 'KeyE') window.__game?.allies?.recruit?.(); // E — действие: позвать амбассадора
+  // Q — радио в машине (делает sg-audio), за оружием не закреплено.
   // [v3-weapons] end
 });
 addEventListener('keyup', (e) => { if (KEYS[e.code]) input[KEYS[e.code]] = false; });
@@ -365,7 +366,7 @@ function step(dt) {
   hud.setSpray(!vehicle && arsenal.current === 'spray' && graffiti.current ? graffiti.current.progress : null);
   hud.setArrow(actor.position, war.target, camYaw);
   const nearCar = !vehicle && (cars.some((c) => c.position.distanceTo(player.position) < 4.5) || traffic.cars.some((c) => c.mesh.position.distanceTo(player.position) < 5));
-  hud.setHint(vehicle ? 'WASD — ехать · Пробел — ручник · F — выйти'
+  hud.setHint(vehicle ? '~WASD~ — ехать · ~Пробел~ — ручник · ~Q~ — радио · ~F~ — выйти'
     : nearCar ? 'F — сесть / угнать'
     : arsenal.hint()); // [v3-weapons]
 }
