@@ -44,35 +44,46 @@ function joint(parent, x, y, z) {
 }
 
 // jacket — куртка, accent — неоновая полоса (цвет банка), cap — кепка в цвете accent.
-export function makeHuman({ jacket = 0x2a2d34, accent = 0x2ecc59, skin = 0xd9a77c, pants = 0x1d1f24, cap = false, scale = 1 } = {}) {
+// Карикатура: headScale, shoulderW, armLen, legLen, neckLen, torsoScale (число или [x, y, z]),
+// prop — аксессуар или список: badge, headset, tie, phone, bigbox, stamp, magnifier, folder, cart.
+export function makeHuman({
+  jacket = 0x2a2d34, accent = 0x2ecc59, skin = 0xd9a77c, pants = 0x1d1f24, cap = false, scale = 1,
+  headScale = 1, shoulderW = 1, armLen = 1, legLen = 1, neckLen = 1, torsoScale = 1, prop = null,
+} = {}) {
   const root = new THREE.Group();
-  const hips = joint(root, 0, 0.95, 0);
+  const hipH = 0.95 * legLen;
+  const hips = joint(root, 0, hipH, 0);
   hips.add(new THREE.Mesh(geo.pelvis, mat(pants)));
   const torso = joint(hips, 0, 0.08, 0);
-  torso.add(new THREE.Mesh(geo.chest, mat(jacket)));
-  for (const x of [-0.12, 0.12]) { const s = new THREE.Mesh(geo.stripe, mat(accent, true)); s.position.set(x, 0, 0.17); torso.add(s); }
-  const neck = new THREE.Mesh(geo.neck, mat(skin)); neck.position.y = 0.64; torso.add(neck);
-  const head = joint(torso, 0, 0.82, 0);
+  const ts = Array.isArray(torsoScale) ? torsoScale : [torsoScale, torsoScale, torsoScale];
+  const chest = new THREE.Mesh(geo.chest, mat(jacket));
+  chest.scale.set(ts[0] * shoulderW, ts[1], ts[2]);
+  torso.add(chest);
+  for (const x of [-0.12, 0.12]) { const s = new THREE.Mesh(geo.stripe, mat(accent, true)); s.position.set(x * ts[0] * shoulderW, 0, 0.17 * ts[2]); s.scale.y = ts[1]; torso.add(s); }
+  const top = 0.58 * ts[1]; // верх торса
+  const neck = new THREE.Mesh(geo.neck, mat(skin)); neck.scale.y = neckLen; neck.position.y = top + 0.06 * neckLen; torso.add(neck);
+  const head = joint(torso, 0, top + 0.12 * neckLen + 0.12 * headScale, 0);
+  head.scale.setScalar(headScale);
   head.add(new THREE.Mesh(geo.head, mat(skin)));
   if (cap) {
     const c = new THREE.Mesh(geo.cap, mat(accent)); c.position.y = 0.13; head.add(c);
     const b = new THREE.Mesh(geo.brim, mat(accent)); b.position.set(0, 0.1, 0.15); head.add(b);
   }
   const arm = (side) => {
-    const shoulder = joint(torso, side * 0.3, 0.55, 0);
-    shoulder.add(new THREE.Mesh(geo.upperArm, mat(jacket)));
-    const elbow = joint(shoulder, 0, -0.32, 0);
-    elbow.add(new THREE.Mesh(geo.foreArm, mat(jacket)));
-    const hand = joint(elbow, 0, -0.3, 0);
+    const shoulder = joint(torso, side * 0.3 * ts[0] * shoulderW, 0.55 * ts[1], 0);
+    const ua = new THREE.Mesh(geo.upperArm, mat(jacket)); ua.scale.y = armLen; shoulder.add(ua);
+    const elbow = joint(shoulder, 0, -0.32 * armLen, 0);
+    const fa = new THREE.Mesh(geo.foreArm, mat(jacket)); fa.scale.y = armLen; elbow.add(fa);
+    const hand = joint(elbow, 0, -0.3 * armLen, 0);
     hand.add(new THREE.Mesh(geo.hand, mat(skin)));
     return { shoulder, elbow, hand };
   };
   const leg = (side) => {
-    const hip = joint(hips, side * 0.12, -0.06, 0);
-    hip.add(new THREE.Mesh(geo.thigh, mat(pants)));
-    const knee = joint(hip, 0, -0.45, 0);
-    knee.add(new THREE.Mesh(geo.shin, mat(pants)));
-    const ankle = joint(knee, 0, -0.42, 0);
+    const hip = joint(hips, side * 0.12, -0.06 * legLen, 0);
+    const th = new THREE.Mesh(geo.thigh, mat(pants)); th.scale.y = legLen; hip.add(th);
+    const knee = joint(hip, 0, -0.45 * legLen, 0);
+    const sh = new THREE.Mesh(geo.shin, mat(pants)); sh.scale.y = legLen; knee.add(sh);
+    const ankle = joint(knee, 0, -0.42 * legLen, 0);
     ankle.add(new THREE.Mesh(geo.foot, mat(0x151515)));
     return { hip, knee, ankle };
   };
@@ -80,10 +91,84 @@ export function makeHuman({ jacket = 0x2a2d34, accent = 0x2ecc59, skin = 0xd9a77
   // Предметы в правой руке: пистолет и баллончик (видимость переключается).
   const gun = new THREE.Mesh(geo.gun, mat(0x111111)); armR.hand.add(gun);
   const can = new THREE.Mesh(geo.can, mat(0x2ecc59)); can.visible = false; armR.hand.add(can);
+  const h = { root, hips, torso, head, armL, armR, legL, legR, gun, can, hipH, t: 0, phase: 0, recoil: 0, hitT: 0, landT: 0, lean: 0, props: {} };
+  for (const p of [].concat(prop || [])) PROPS[p]?.(h, { jacket, accent, skin, ts, top });
   root.traverse((o) => { if (o.isMesh) o.castShadow = true; });
   root.scale.setScalar(scale);
-  return { root, hips, torso, head, armL, armR, legL, legR, gun, can, t: 0, phase: 0, recoil: 0, hitT: 0, landT: 0, lean: 0 };
+  return h;
 }
+
+// --- Аксессуары карикатур ---
+const textTex = new Map();
+function plateTex(text, bg = '#ffffff', fg = '#111111') {
+  const key = text + bg + fg;
+  if (textTex.has(key)) return textTex.get(key);
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 128;
+  const g = c.getContext('2d');
+  g.fillStyle = bg; g.fillRect(0, 0, 256, 128);
+  g.fillStyle = fg; g.textAlign = 'center'; g.textBaseline = 'middle';
+  const lines = text.split('\n');
+  g.font = `bold ${lines.length > 1 ? 34 : 44}px "Press Start 2P", monospace`;
+  lines.forEach((l, k) => g.fillText(l, 128, 64 + (k - (lines.length - 1) / 2) * 44));
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.magFilter = THREE.NearestFilter;
+  textTex.set(key, t);
+  return t;
+}
+const plate = (text, w, h, bg, fg) => new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: plateTex(text, bg, fg) }));
+const box = (w, h, d, c) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(c));
+const PROPS = {
+  // Бейдж во всю грудь.
+  badge(h, { ts }) { const m = plate('ПРИВЕТ,\nЯ ПИАРЩИК', 0.34, 0.17); m.position.set(0, 0.36 * ts[1], 0.215 * ts[2] + 0.01); h.torso.add(m); h.props.badge = m; },
+  // Гарнитура: дужка и микрофон.
+  headset(h) {
+    const band = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.015, 4, 10, Math.PI), mat(0x111111)); band.position.y = 0.04; h.head.add(band);
+    const mic = box(0.02, 0.02, 0.16, 0x111111); mic.position.set(0.17, -0.06, 0.08); mic.rotation.y = -0.4; h.head.add(mic);
+    h.props.headset = band;
+  },
+  // Галстук, развевается назад (animateHuman).
+  tie(h, { accent, ts }) { const t = box(0.06, 0.3, 0.02, accent); t.geometry.translate(0, -0.15, 0); t.position.set(0, 0.55 * ts[1], 0.2 * ts[2]); h.torso.add(t); h.props.tie = t; },
+  // Телефон приклеен к уху (левая рука поднята).
+  phone(h) { const p = box(0.05, 0.12, 0.02, 0x222222); p.position.set(0, -0.08, 0.04); h.armL.hand.add(p); h.props.phone = p; },
+  // Короб в 3 раза больше курьера: торчат одни ноги.
+  bigbox(h, { accent }) { const b = box(1.3, 1.5, 1.1, 0x2ec4b6); b.position.set(0, 0.55, -0.15); h.torso.add(b); const l = box(1.32, 0.12, 1.12, accent); l.position.set(0, 0.85, -0.15); h.torso.add(l); h.props.bigbox = b; },
+  // Голова — круглая печать «ООО».
+  stamp(h) {
+    h.head.children[0].visible = false;
+    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.09, 0.22, 8), mat(0x3a2414)); handle.position.y = 0.05;
+    const knob = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), mat(0x3a2414)); knob.position.y = 0.2;
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.1, 12), mat(0x2848c8)); base.position.y = -0.1;
+    h.head.add(handle, knob, base); h.props.stamp = base;
+  },
+  // Лупа вместо глаза.
+  magnifier(h) { const r = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.015, 4, 12), mat(0xc0a040)); r.position.set(0.07, 0.03, 0.17); h.head.add(r); h.props.magnifier = r; },
+  // Папка толщиной с чемодан.
+  folder(h) { const f = box(0.12, 0.42, 0.55, 0x2a5aa8); f.position.set(0, -0.22, 0.05); h.armR.hand.add(f); h.props.folder = f; },
+  // Голова ПАО — офисное здание с окнами.
+  office(h) {
+    h.head.children[0].visible = false;
+    const b = box(0.36, 0.5, 0.36, 0x7d8a96); b.position.y = 0.08; h.head.add(b);
+    const w = plate('▪ ▪ ▪\n▪ ▪ ▪', 0.3, 0.4, '#2a3440', '#ffd27a'); w.position.set(0, 0.08, 0.181); h.head.add(w);
+    h.props.office = b;
+  },
+  // Майка: руки голые.
+  tanktop(h, { skin }) { for (const a of [h.armL, h.armR]) { a.shoulder.children[0].material = mat(skin); a.elbow.children[0].material = mat(skin); } },
+  // Сумка-тележка бабушки.
+  cart(h) { const c = box(0.32, 0.42, 0.26, 0x6a2a5a); c.position.set(0, -0.36, 0.25); h.armR.hand.add(c); h.props.cart = c; },
+};
+
+// --- Пресеты карикатур (передавать в makeHuman вместе с цветами) ---
+export const PR_PRESET = { headScale: 1.5, prop: ['badge', 'headset', 'tie'] };
+export const COLLECTOR_PRESET = { shoulderW: 2.2, torsoScale: [1, 1.15, 1.3], headScale: 0.5, armLen: 1.15, prop: ['phone'] };
+export const SELLER_PRESET = { armLen: 2.1, headScale: 1.2, prop: ['folder'] };
+export const COURIER_PRESET = { prop: ['bigbox'] };
+export const CORP_PRESET = { prop: ['stamp'], torsoScale: [1.1, 1, 1.1] };
+export const JOCK_PRESET = { shoulderW: 2.1, torsoScale: [1.1, 1.1, 1.4], headScale: 0.55, legLen: 0.75, armLen: 1.1, prop: ['tanktop'] };
+export const PAO_PRESET = { prop: ['office'], torsoScale: [1.15, 1, 1.15] };
+export const FNS_PRESET = { neckLen: 7, headScale: 1.05, prop: ['magnifier', 'folder'] };
+export const GRANNY_PRESET = { headScale: 1.15, legLen: 0.8, prop: ['cart'], scale: 0.85 };
 
 const damp = (cur, target, k, dt) => cur + (target - cur) * Math.min(1, k * dt);
 
@@ -103,7 +188,8 @@ export function animateHuman(h, dt, pose) {
   // Ноги: мах бедром, сгиб колена на заднем ходе шага.
   let hipL = Math.sin(ph) * amp, hipR = -Math.sin(ph) * amp;
   let kneeL = Math.max(0, -Math.sin(ph + 0.6)) * amp * 1.6, kneeR = Math.max(0, Math.sin(ph + 0.6)) * amp * 1.6;
-  let hipsY = 0.95 + (moving ? Math.abs(Math.sin(ph)) * (run ? 0.08 : 0.04) : Math.sin(h.t * 2) * 0.008);
+  const hipH = h.hipH ?? 0.95;
+  let hipsY = hipH + (moving ? Math.abs(Math.sin(ph)) * (run ? 0.08 : 0.04) : Math.sin(h.t * 2) * 0.008);
   if (pose.air) {
     // В воздухе: поджатые ноги.
     hipL = -0.9; hipR = -0.6; kneeL = 1.5; kneeR = 1.2;
@@ -153,5 +239,7 @@ export function animateHuman(h, dt, pose) {
 
   // Перекат: полный оборот корпуса вперёд.
   h.hips.rotation.x = pose.roll ? pose.roll * Math.PI * 2 : 0;
-  if (pose.roll) h.hips.position.y = 0.55;
+  if (pose.roll) h.hips.position.y = hipH * 0.58;
+  if (h.props?.tie) h.props.tie.rotation.x = -(moving ? (run ? 1.1 : 0.5) : 0.1) - Math.sin(h.t * 14) * 0.15 * (moving ? 1 : 0.2);
+  if (h.props?.phone && !pose.aiming) { h.armL.shoulder.rotation.x = -2.5; h.armL.shoulder.rotation.z = 0.6; h.armL.elbow.rotation.x = -2.3; }
 }

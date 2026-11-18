@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { N, BLOCK, ROAD, HALF, CELL, BANKS, roadCoord, districtAt, resolveCircle, groundAt } from './city.js';
-import { makeHuman, animateHuman } from './humans.js';
+import { makeHuman, animateHuman, COURIER_PRESET, CORP_PRESET, JOCK_PRESET, GRANNY_PRESET, PAO_PRESET } from './humans.js';
 import { enableSnap } from './retro.js';
 
 // Мирные жители: гуляют по тротуарам (периметр кварталов), переходят дорогу,
@@ -116,12 +116,13 @@ const PROPS = {
 
 const TYPES = {
   clerk: { w: 4, jackets: [0x2b3a55, 0x3a3a3a, 0x4b4f58, 0x2e2e3e], pants: 0x22252c, speed: [1.3, 1.7], props: ['laptop', 'coffee', null] },
-  courier: { w: 2, jackets: [0xff7a1a, 0x2a7bd6], pants: 0x1d1f24, cap: true, speed: [1.9, 2.3], props: ['box'] },
+  courier: { w: 2, jackets: [0xff7a1a, 0x2a7bd6], pants: 0x1d1f24, cap: true, speed: [1.9, 2.3], props: [null], preset: COURIER_PRESET },
   tourist: { w: 2, jackets: [0xff6fa8, 0x6fd3ff, 0xfff06f, 0xffffff], pants: 0xc9b48a, speed: [1.0, 1.3], props: ['camera'] },
-  jock: { w: 1, jackets: [0x222222, 0xffffff, 0x3a6ea5], pants: 0x2a2a2a, speed: [1.2, 1.5], props: [null], jock: true },
-  corp: { w: 0, jackets: [0x1a1c22, 0x23262e], pants: 0x1a1c22, scale: 2, speed: [0.9, 1.0], props: ['case'], corp: true },
-  pao: { w: 0, jackets: [0x101010], pants: 0x101010, scale: 3, speed: [0.8, 0.8], props: ['case'], corp: true },
-  granny: { w: 1, jackets: [0x7a4a6a, 0x5a6a4a, 0x8a6a5a], pants: 0x4a3a4a, scale: 0.86, speed: [0.7, 0.9], props: ['bag'], skin: 0xe8c0a0 },
+  jock: { w: 1, jackets: [0x222222, 0xffffff, 0x3a6ea5], pants: 0x2a2a2a, speed: [1.2, 1.5], props: [null], preset: JOCK_PRESET },
+  corp: { w: 0, jackets: [0x1a1c22, 0x23262e], pants: 0x1a1c22, scale: 2, speed: [0.9, 1.0], props: ['case'], corp: true, preset: CORP_PRESET },
+  pao: { w: 0, jackets: [0x101010], pants: 0x101010, scale: 3, speed: [0.8, 0.8], props: ['case'], corp: true, preset: PAO_PRESET },
+  // Бабушка: самая быстрая и неуязвимая, тележка отбрасывает машины.
+  granny: { w: 1, jackets: [0x7a4a6a, 0x5a6a4a, 0x8a6a5a], pants: 0x4a3a4a, scale: 0.85, speed: [5, 6.5], props: [null], skin: 0xe8c0a0, preset: GRANNY_PRESET, invulnerable: true },
 };
 const TYPE_BAG = Object.entries(TYPES).flatMap(([k, t]) => Array(t.w).fill(k));
 const SKINS = [0xd9a77c, 0xf0c8a0, 0xb07850, 0x8a5a3a, 0xe8b890];
@@ -155,6 +156,7 @@ const cornerOf = (sx, sz) => (sz < 0 ? (sx < 0 ? 0 : 1) : (sx < 0 ? 3 : 2));
 const CORP_NAMES = ['ООО «Ромашка»', 'ИП Петров', 'АО «Вектор»', 'ООО «Рога и копыта»', 'ИП Сидорова', 'ЗАО «Дебет»'];
 const PAO_NAMES = ['ПАО «Мега-Холдинг»', 'ПАО «Нефтегазкредит»'];
 
+const STAMP = {};
 const _v = new THREE.Vector3();
 const _p = new THREE.Vector3();
 
@@ -168,6 +170,7 @@ export class Npcs {
     this.bubbles = 0;
     this.shake = 0; // тряска камеры от шагов юрлиц (м)
     this.labeled = null;
+    this.stamps = [];
     this.filled = false;
     this.spawnT = 0;
     this.onKilled = null; // (npc) => void — сбит машиной
@@ -184,10 +187,9 @@ export class Npcs {
     const accent = BANKS[bank].color;
     // Треть прохожих — «клиенты»: куртка в цвете банка района.
     const jacket = Math.random() < 0.33 ? new THREE.Color(accent).lerp(new THREE.Color(0x111111), 0.45).getHex() : pick(T.jackets);
-    const h = makeHuman({ jacket, accent, pants: T.pants, skin: T.skin || pick(SKINS), cap: T.cap, scale: T.scale || 1 });
+    const h = makeHuman({ ...(T.preset || {}), jacket, accent, pants: T.pants, skin: T.skin || pick(SKINS), cap: T.cap, scale: T.scale || 1 });
     h.armR.hand.remove(h.gun);
     h.gun = new THREE.Object3D(); // мирные без оружия (animateHuman трогает h.gun.visible)
-    if (T.jock) bulkUp(h);
     let corpName = null;
     if (T.corp) {
       corpName = pick(type === 'pao' ? PAO_NAMES : CORP_NAMES);
@@ -285,13 +287,34 @@ export class Npcs {
     return k;
   }
 
+  stampAt(n) {
+    if (!STAMP.mat) {
+      const c = document.createElement('canvas'); c.width = c.height = 128;
+      const g = c.getContext('2d');
+      g.strokeStyle = g.fillStyle = 'rgba(40,72,200,0.85)'; g.lineWidth = 8;
+      g.beginPath(); g.arc(64, 64, 54, 0, Math.PI * 2); g.stroke();
+      g.font = 'bold 30px "Press Start 2P", monospace'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('ООО', 64, 66);
+      const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+      STAMP.mat = new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+      STAMP.geo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+    }
+    let m = this.stamps.length >= 40 ? this.stamps.shift() : new THREE.Mesh(STAMP.geo, STAMP.mat);
+    m.position.set(n.position.x, groundAt(n.position.x, n.position.z) + 0.02, n.position.z);
+    m.rotation.y = n.h.root.rotation.y;
+    m.scale.setScalar(0.5 * n.scale);
+    this.scene.add(m);
+    this.stamps.push(m);
+  }
+
   // Сбит машиной.
   hit(n, vel) {
     n.dead = true;
     n.deadT = 0;
-    n.fling = vel.clone().multiplyScalar(0.7);
-    n.fling.y = 0;
-    if (n.bubble) this.unsay(n);
+    // Абсурд: улетает в 5 раз дальше, кувыркаясь и вопя.
+    n.vel = vel.clone().multiplyScalar(1.6);
+    n.vel.y = 6 + vel.length() * 0.3;
+    n.spin = 9 * (Math.random() < 0.5 ? -1 : 1);
+    this.say(n, pick(['А-а-а-а!', 'Мой депозит!', 'Ой-ой-ой!']), 2);
     this.onKilled?.(n);
   }
 
@@ -339,8 +362,21 @@ export class Npcs {
 
       if (n.dead) {
         n.deadT += dt;
-        n.h.root.rotation.x = Math.max(-Math.PI / 2, -n.deadT * n.deadT * 14);
-        if (n.fling) n.position.addScaledVector(n.fling, dt * Math.max(0, 1 - n.deadT * 1.5));
+        if (n.vel) {
+          n.vel.y -= 20 * dt;
+          n.position.addScaledVector(n.vel, dt);
+          const bx = n.position.x, bz = n.position.z;
+          resolveCircle(n.position, n.radius, this.colliders, n.position.y);
+          if (Math.abs(bx - n.position.x) > 1e-3) n.vel.x *= -0.6;
+          if (Math.abs(bz - n.position.z) > 1e-3) n.vel.z *= -0.6;
+          n.h.root.rotation.x += n.spin * dt;
+          if (n.position.y <= 0) {
+            n.position.y = 0;
+            if (n.vel.y < -4) { n.vel.y *= -0.35; n.vel.x *= 0.6; n.vel.z *= 0.6; n.spin *= 0.5; }
+            else { n.vel = null; n.h.root.rotation.x = -Math.PI / 2; }
+          }
+        }
+        if (n.bubble && (n.bubbleT -= dt) <= 0) this.unsay(n);
         if (!far) animateHuman(n.h, dt, { speed: 0, crouch: Math.min(1, n.deadT * 2) });
         if (n.deadT > 8) this.remove(n);
         continue;
@@ -350,6 +386,7 @@ export class Npcs {
       if (dist < 40) {
         const v = ctx.vehicle;
         if (v && Math.abs(v.speed) > 6 && Math.hypot(n.position.x - v.position.x, n.position.z - v.position.z) < (v.radius || 1.9) + n.radius) {
+          if (TYPES[n.type].invulnerable) { v.speed = -v.speed * 0.6; this.say(n, 'Куда прёшь, ирод!'); this.grannyHits = (this.grannyHits || 0) + 1; continue; }
           this.hit(n, _v.set(Math.sin(v.heading), 0, Math.cos(v.heading)).multiplyScalar(Math.abs(v.speed)));
           continue;
         }
@@ -436,7 +473,10 @@ export class Npcs {
       }
 
       if (far) continue; // дальних не анимируем
-      animateHuman(n.h, dt, { speed: n.speed / n.scale, run });
+      const ph0 = n.h.phase;
+      animateHuman(n.h, dt, { speed: n.speed / n.scale, run: run || n.walk > 3 });
+      // Юрлицо-печать штампует асфальт: синие оттиски «ООО» на каждом шаге.
+      if (n.type === 'corp' && n.speed > 0.2 && Math.floor(ph0 / Math.PI) !== Math.floor(n.h.phase / Math.PI)) this.stampAt(n);
       if (n.mode === 'phone') {
         // Телефон у уха.
         n.h.armL.shoulder.rotation.x = -2.5; n.h.armL.shoulder.rotation.z = 0.6; n.h.armL.elbow.rotation.x = -2.3;

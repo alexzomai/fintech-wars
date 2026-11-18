@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { BANKS, BLOCK, rayBoxes, resolveCircle, groundAt } from './city.js';
-import { makeHuman, animateHuman } from './humans.js';
-import { speechSprite, bulkUp } from './npc.js';
+import { makeHuman, animateHuman, JOCK_PRESET } from './humans.js';
+import { speechSprite } from './npc.js';
 
 // Союзники Сбережёнки: амбассадоры (до 4, зовутся на G) и охрана штаба у Евразии.
 
@@ -35,8 +35,7 @@ export class Allies {
 
   make(type, pos) {
     const T = ALLY_TYPES[type];
-    const h = makeHuman({ jacket: T.jacket, accent: BANKS.green.color, pants: 0x22252c, cap: T.cap });
-    if (T.tank) bulkUp(h);
+    const h = makeHuman({ ...(T.tank ? JOCK_PRESET : {}), jacket: T.jacket, accent: BANKS.green.color, pants: 0x22252c, cap: T.cap });
     const tri = new THREE.Mesh(triGeo, triMat);
     tri.position.y = 2.45;
     h.root.add(tri);
