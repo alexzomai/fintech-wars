@@ -22,30 +22,33 @@ check(counts.lamp > 50 && counts.bench > 5 && counts.bin > 5 && counts.treeS + c
 // Линейка всех моделей машин на пустом месте у старта.
 const kinds = await page.evaluate(async () => {
   const { makeCarMesh } = await import('/src/car.js');
-  const { CAR_KINDS } = await import('/src/props.js');
+  const { CAR_TYPES } = await import('/src/props.js');
+  window.__spin = (await import('/src/props.js')).spinWheels;
   const scene = window.__game.traffic.cars[0].mesh.parent;
   const p0 = window.__game.player.position;
-  const names = Object.keys(CAR_KINDS), meshes = [];
+  const names = Object.keys(CAR_TYPES), meshes = [];
   names.forEach((k, i) => {
-    const m = makeCarMesh([0x4d8dff, 0xff4d4d, 0x2ecc59, 0xffc94d, 0x9b6bff, 0xffffff][i], k);
-    m.position.set(p0.x - 12 + i * 5, 0.25, p0.z - 20);
+    const m = makeCarMesh([0x4d8dff, 0xff4d4d, 0x2ecc59, 0xffc94d, 0x9b6bff, 0xffffff, 0xff8a3d, 0x4d8dff, 0x2ecc59][i], k);
+    m.position.set(p0.x - 14 + (i % 5) * 6, 0.25, p0.z - 20 - Math.floor(i / 5) * 8);
     scene.add(m); meshes.push(m);
   });
   window.__lineup = meshes;
   await new Promise((r) => { const t = setInterval(() => { if (meshes.every((m) => m.children.length === 1 && m.children[0].isGroup)) { clearInterval(t); r(); } }, 100); setTimeout(r, 15000); });
   return names.map((k, i) => ({ k, loaded: meshes[i].children.length === 1 && meshes[i].children[0].isGroup }));
 });
-check(kinds.every((k) => k.loaded), 'все 6 моделей машин загрузились: ' + kinds.map((k) => k.k).join(','));
+check(kinds.every((k) => k.loaded), 'все модели машин загрузились: ' + kinds.map((k) => k.k).join(','));
 const dims = await page.evaluate(async () => {
   const T = window.__game.cam.position.constructor;
   const THREE = { Box3: (await import('/node_modules/three/build/three.module.js')).Box3 };
   return window.__lineup.map((m) => { m.updateMatrixWorld(true); const b = new THREE.Box3().setFromObject(m.children[0]); const s = b.getSize(new T()); return [s.x, s.y, s.z, b.min.y - m.position.y]; });
 });
 console.log('dims', JSON.stringify(dims.map((d) => d.map((v) => +v.toFixed(2)))));
+const spin = await page.evaluate(() => { const m = window.__lineup[0]; const w = m.userData.holder.userData.wheels; const a = w[0].rotation.x; window.__spin(m, 10, 0.1); return [w.length, w[0].rotation.x - a]; });
+check(spin[0] === 4 && spin[1] > 0.1, 'колёса крутятся: ' + spin.join(' '));
 check(dims.every((d) => d[2] > 3.5 && d[2] < 6 && Math.abs(d[3]) < 0.1), 'длина 3.5–6 м, колёса на земле');
 const p0 = await page.evaluate(() => { const p = window.__game.player.position; return [p.x, p.z]; });
 await page.evaluate(() => window.__lineup.forEach((m) => { m.rotation.y = 0.6; }));
-await cam([p0[0] - 4, 4.5, p0[1] - 8], [p0[0] - 1, 1, p0[1] - 20]);
+await cam([p0[0] + 2, 7, p0[1] - 6], [p0[0] + 2, 1, p0[1] - 22]);
 await settle();
 await page.screenshot({ path: 'test/out/models-lineup.png' });
 await page.evaluate(() => window.__lineup.forEach((m) => m.parent.remove(m)));

@@ -13,30 +13,29 @@ export function loadGLB(url) {
 }
 
 // --- Машины ---
-// len — длина в метрах; paint — клетки палитры 8×8, которые красятся в цвет машины
-// (null = фиксированная раскраска: такси, «ЦБ»).
-export const CAR_KINDS = {
-  sedan: { len: 4.4, paint: [6, 2] },
-  sports: { file: 'sedan-sports', len: 4.4, paint: [6, 2] },
-  suv: { len: 4.6, paint: [3, 2] },
-  taxi: { len: 4.4, paint: null },
-  van: { file: 'delivery', len: 5.2, paint: [3, 2] }, // фургон-инкассатор
-  police: { len: 4.6, paint: null }, // «ЦБ»
+// Таблица типов: len — длина (м), paint — клетка палитры 8×8 под цвет машины (null = фиксированная раскраска),
+// fixed — принудительный цвет. radius/maxSpeed/accel/mass — для физики (Car её подхватывает отдельно).
+export const CAR_TYPES = {
+  sedan: { id: 'sedan', name: 'Ипотека Седан', mesh: 'sedan', len: 4.4, paint: [6, 2], radius: 1.9, maxSpeed: 38, accel: 22, mass: 1.0 },
+  hatch: { id: 'hatch', name: 'Депозит Хэтч', mesh: 'hatchback-sports', len: 3.9, paint: [3, 2], radius: 1.8, maxSpeed: 40, accel: 25, mass: 0.85 },
+  suv: { id: 'suv', name: 'Кредит Внедорожник', mesh: 'suv', len: 4.7, paint: [3, 2], radius: 2.0, maxSpeed: 35, accel: 20, mass: 1.4 },
+  sports: { id: 'sports', name: 'Микрозайм GT', mesh: 'sedan-sports', len: 4.4, paint: [6, 2], radius: 1.9, maxSpeed: 52, accel: 32, mass: 0.9 },
+  taxi: { id: 'taxi', name: 'Кэшбэк Такси', mesh: 'taxi', len: 4.4, paint: null, radius: 1.9, maxSpeed: 40, accel: 24, mass: 1.0 },
+  van: { id: 'van', name: 'Сбережёнка-мобиль', mesh: 'van', len: 5.0, paint: [7, 2], radius: 2.1, maxSpeed: 32, accel: 17, mass: 1.6 },
+  armored: { id: 'armored', name: 'Инкассатор', mesh: 'delivery', len: 5.4, paint: [3, 2], fixed: 0x55595f, radius: 2.3, maxSpeed: 28, accel: 14, mass: 3.0 },
+  fns: { id: 'fns', name: 'Служебный ФНС', mesh: 'sedan', len: 4.4, paint: [6, 2], fixed: 0x8a8f98, siren: true, radius: 1.9, maxSpeed: 45, accel: 28, mass: 1.1 },
+  police: { id: 'police', name: 'Патруль ЦБ', mesh: 'police', len: 4.6, paint: null, siren: true, radius: 1.9, maxSpeed: 46, accel: 28, mass: 1.1 },
 };
-// Цвета NPC-трафика → модель (чтобы улица была разномастной); остальное — по хэшу цвета.
-const KIND_BY_COLOR = { 0x4d8dff: 'sedan', 0xffc94d: 'taxi', 0x5ad17a: 'suv', 0xffffff: 'police', 0x9b6bff: 'sports', 0x333333: 'van', 0xff8a3d: 'sports' };
-const KIND_LIST = ['sedan', 'sports', 'suv', 'van'];
-export function carKindFor(color) {
-  return KIND_BY_COLOR[color] || KIND_LIST[(color * 2654435761 >>> 0) % KIND_LIST.length];
-}
-
-export const carModelUrl = (kind) => `/models/cars/${CAR_KINDS[kind].file || kind}.glb`;
-export const preloadCars = () => Object.keys(CAR_KINDS).forEach((k) => loadGLB(carModelUrl(k)).catch(() => {}));
+const CAR_ORDER = ['sedan', 'sedan', 'hatch', 'hatch', 'suv', 'sports', 'taxi', 'van', 'armored', 'fns', 'police'];
+export const randomCarType = () => CAR_ORDER[Math.floor(Math.random() * CAR_ORDER.length)];
+export const carModelUrl = (type) => `/models/cars/${CAR_TYPES[type].mesh}.glb`;
+export const preloadCars = () => Object.keys(CAR_TYPES).forEach((k) => loadGLB(carModelUrl(k)).catch(() => {}));
 
 const paintCache = new Map();
 // Материал с перекрашенной палитрой: градиент кузова заменяется оттенками нужного цвета.
 function paintedMaterial(kind, orig, color) {
-  const spec = CAR_KINDS[kind];
+  const spec = CAR_TYPES[kind];
+  if (spec.fixed != null) color = spec.fixed;
   const key = `${kind}:${spec.paint ? color : 'fixed'}`;
   if (paintCache.has(key)) return paintCache.get(key);
   const mat = orig.clone();
@@ -66,22 +65,69 @@ function paintedMaterial(kind, orig, color) {
 }
 
 // Готовая модель машины: «перед = +Z», длина по таблице, колёса на y = 0.
+// userData: wheels (для spinWheels), wheelR, brake (стоп-сигналы), siren (мигалка).
 export async function buildCarModel(kind, color) {
+  const spec = CAR_TYPES[kind];
   const src = await loadGLB(carModelUrl(kind));
   const model = src.clone(true);
+  const wheels = [];
   model.traverse((o) => {
+    if (/^wheel/.test(o.name)) wheels.push(o);
     if (!o.isMesh) return;
     o.material = paintedMaterial(kind, o.material, color);
     o.castShadow = true;
   });
   const box = new THREE.Box3().setFromObject(model);
   const size = box.getSize(new THREE.Vector3());
-  const s = CAR_KINDS[kind].len / size.z;
+  const s = spec.len / size.z;
   const holder = new THREE.Group();
   model.scale.setScalar(s);
   model.position.set(-(box.min.x + box.max.x) / 2 * s, -box.min.y * s, -(box.min.z + box.max.z) / 2 * s);
   holder.add(model);
+  holder.userData.wheels = wheels;
+  holder.userData.wheelR = 0.3 * s;
+
+  // Фары, стоп-сигналы, мигалка (самосветящиеся коробки).
+  const w = size.x * s, h = size.y * s, L = spec.len;
+  const head = new THREE.MeshBasicMaterial({ color: 0xfff6c0 });
+  const tail = new THREE.MeshBasicMaterial({ color: 0x7a1010 });
+  const lg = new THREE.BoxGeometry(0.38, 0.2, 0.06);
+  for (const x of [-1, 1]) {
+    const f = new THREE.Mesh(lg, head); f.position.set(x * w * 0.32, h * 0.3, L / 2 + 0.02);
+    const r = new THREE.Mesh(lg, tail); r.position.set(x * w * 0.32, h * 0.32, -L / 2 - 0.02);
+    holder.add(f, r);
+  }
+  holder.userData.tail = tail;
+  if (spec.siren) {
+    const red = new THREE.MeshBasicMaterial({ color: 0xff2222 }), blue = new THREE.MeshBasicMaterial({ color: 0x2255ff });
+    const sg = new THREE.BoxGeometry(0.4, 0.14, 0.3);
+    const a = new THREE.Mesh(sg, red), b = new THREE.Mesh(sg, blue);
+    a.position.set(-0.25, h + 0.05, 0); b.position.set(0.25, h + 0.05, 0);
+    holder.add(a, b);
+    holder.userData.siren = [red, blue];
+  }
   return holder;
+}
+
+// Крутит колёса и мигалку. speed — скорость вдоль курса (м/с), dt — секунды. Вызывать каждый кадр.
+export function spinWheels(mesh, speed, dt) {
+  const u = mesh.userData;
+  const holder = u.holder;
+  const d = holder?.userData;
+  if (!d) return;
+  const k = (speed * dt) / d.wheelR;
+  for (const w of d.wheels) w.rotation.x += k;
+  if (d.siren) {
+    const on = Math.floor(performance.now() / 180) % 2 === 0;
+    d.siren[0].color.set(on ? 0xff2222 : 0x331111);
+    d.siren[1].color.set(on ? 0x112244 : 0x2255ff);
+  }
+}
+
+// Стоп-сигналы: ярче, когда тормозим.
+export function setBrakeLights(mesh, on) {
+  const d = mesh.userData.holder?.userData;
+  if (d) d.tail.color.set(on ? 0xff2a2a : 0x7a1010);
 }
 
 // --- Реквизит ---
