@@ -16,6 +16,7 @@ import { Fx } from './fx.js';
 import { Hud } from './hud.js';
 // [v3-weapons] begin
 import { Arsenal } from './weapons.js';
+import { Aircraft } from './aircraft.js'; // [v3-air]
 // [v3-weapons] end
 // [v3-pop] begin
 import { Npcs } from './npc.js';
@@ -115,6 +116,9 @@ let vehicle = cars[0];
 
 const state = { mode: 'menu', deadT: 0, timeScale: 1 };
 const stunts = new Stunts(scene, state);
+// [v3-air] begin
+const aircraft = new Aircraft({ scene, colliders, districts, hud, state, player });
+// [v3-air] end
 const war = new War({
   districts, enemies, hud, graffiti,
   onWin: (kind) => endGame(kind),
@@ -141,7 +145,7 @@ addEventListener('keydown', (e) => {
   if (KEYS[e.code]) { input[KEYS[e.code]] = true; e.preventDefault(); }
   if (e.code === 'KeyN' && !e.repeat && state.mode === 'play') neon.toggleNight(); // [v3-neon]
   if (state.mode !== 'play' || e.repeat) return;
-  if (e.code === 'KeyF') toggleCar();
+  if (e.code === 'KeyF' && (vehicle || !aircraft.tryEnter(player))) toggleCar(); // [v3-air] сначала вертолёт
   if (e.code === 'Space' && !vehicle) player.jump();
   if ((e.code === 'ControlLeft' || e.code === 'ControlRight') && !vehicle) { e.preventDefault(); player.roll(); }
   // [v3-weapons] begin
@@ -363,6 +367,7 @@ function step(dt) {
       }
     }
     stunts.update(dt, vehicle, () => { war.reach += 15; war.addMoney(200); });
+  } else if (aircraft.flying) { // [v3-air] за штурвалом: вертолёт двигает aircraft.update
   } else {
     player.update(dt, input, camYaw, colliders, cars, { aiming: input.fire && ['pistol', 'smg'].includes(arsenal.current), spraying: input.fire && arsenal.current === 'spray', aimPitch: camPitch });
     traffic.collide(player);
@@ -423,6 +428,7 @@ function frame() {
     state.deadT -= dt;
     if (state.deadT <= 0) respawn();
   }
+  aircraft.update(dt, input); // [v3-air]
   fx.update(dt);
   updateCamera(dt);
   // [v3-war] begin
@@ -445,6 +451,7 @@ window.__game = {
   colliders, districts, enemies, traffic, war, player, cars, input, state, hurt, fx, graffiti, stunts,
   get weapon() { return arsenal.current; },
   arsenal, hud, // [v3-weapons]
+  aircraft, // [v3-air]
   get vehicle() { return vehicle; },
   get camYaw() { return camYaw; },
   aim(yaw, pitch = 0) { camYaw = yaw; camPitch = pitch; },
