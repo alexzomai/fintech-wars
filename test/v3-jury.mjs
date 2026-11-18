@@ -40,7 +40,20 @@ await shot('jury-1-editor');
 await page.click('#tagDone');
 check(await g(() => window.__game.state.mode === 'play'), 'после «Готово» игра стартует');
 check(await g(() => !!localStorage.getItem('fintech-wars-tag-v1')), 'рисунок сохранён в localStorage');
-check(await g(() => { const G = window.__game.graffiti; return !!G.customTag && G.mats.green.map === G.customTag && G.customTag.image.tagName === 'CANVAS'; }), 'зелёный тег использует пользовательскую текстуру');
+check(await g(() => { const G = window.__game.graffiti; return !!G.customTag && G.tags.some((t) => t.owner === 'green' && t.mesh.material.map === G.customTag) && G.customTag.image.tagName === 'CANVAS'; }), 'зелёные теги используют пользовательскую текстуру');
+
+// Вариации: 4 на банк, у тегов на стенах встречается >1 варианта; коллаж в скриншот.
+check(await g(() => { const V = window.__game.graffiti.variants; return Object.values(V).every((a) => a.length === 4 && new Set(a.map((m) => m.map)).size === 4); }), '4 разных варианта тега на каждый банк');
+check(await g(() => new Set(window.__game.graffiti.tags.map((t) => t.mesh.material)).size > 4), 'на стенах разные варианты тегов');
+await page.waitForTimeout(1500); // дать подгрузиться PNG
+await g(() => {
+  const V = window.__game.graffiti.variants, d = document.createElement('div');
+  d.id = 'varSheet'; d.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#556;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:6px';
+  for (const b of ['green', 'red', 'yellow']) for (const m of V[b]) { const c = document.createElement('canvas'); c.width = 256; c.height = 128; c.style.cssText = 'width:100%;background:#8a4f3a'; c.getContext('2d').drawImage(m.map.image, 0, 0, 256, 128); d.appendChild(c); }
+  document.body.appendChild(d);
+});
+await shot('jury-6-graffiti-variants');
+await g(() => document.getElementById('varSheet').remove());
 await g(() => { window.__game.state.god = true; });
 // Камера на зелёный тег.
 const tagPos = await g(() => { const t = window.__game.graffiti.tags.find((x) => x.owner === 'green'); return t ? { p: t.pos.toArray(), n: t.normal.toArray() } : null; });
@@ -66,7 +79,7 @@ await page.waitForTimeout(800);
 const p1 = await g(() => window.__game.traffic.cars.map((c) => c.mesh.position.x + c.mesh.position.z));
 check(p0.every((v, i) => v === p1[i]), 'SANCTIONS: трафик стоит');
 await page.keyboard.type('keyrate', { delay: 40 });
-check((await page.locator('#toast').textContent()).includes('Розыск сброшен'), 'KEYRATE: тост');
+check((await page.locator('#subtitle').textContent()).includes('Розыск сброшен'), 'KEYRATE: тост');
 
 // Сторис.
 await page.keyboard.press('KeyP');
