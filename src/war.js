@@ -49,6 +49,7 @@ export class War {
     this.updateCapture(dt, actorPos, alive);
     this.updateCounter(dt, actorPos);
     this.updateAiWar(dt);
+    this.squads?.update(dt, actorPos); // союзные бригады (squads.js)
 
     const g = this.count('green');
     if (g === this.districts.length) return this.finish('win');
@@ -229,7 +230,8 @@ export class War {
     this.aiT -= dt;
     if (this.aiT > 0) return;
     this.aiT = 60;
-    const targets = this.districts.filter((d) => d.owner !== 'green' && this.capture?.d !== d);
+    const busy = new Set(this.squads?.list.map((s) => s.d) || []);
+    const targets = this.districts.filter((d) => d.owner !== 'green' && this.capture?.d !== d && !busy.has(d));
     if (!targets.length) return;
     const d = targets[Math.floor(Math.random() * targets.length)];
     const bank = d.owner === 'red' ? 'yellow' : 'red';

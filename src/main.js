@@ -8,6 +8,7 @@ import { Traffic } from './traffic.js';
 import { Enemies } from './enemies.js';
 import { War } from './war.js';
 import { Markers } from './markers.js'; // [v3-war]
+import { Squads } from './squads.js'; // [v3-war]
 import { Fx } from './fx.js';
 import { Hud } from './hud.js';
 // [v3-weapons] begin
@@ -97,6 +98,7 @@ const war = new War({
 war.camera = camera; // телепорт застрявших врагов — вне кадра
 const markers = new Markers(scene, camera);
 window.__markers = markers;
+war.squads = new Squads({ scene, war, enemies, graffiti, hud, fx, colliders });
 // [v3-war] end
 
 // --- Ввод ---
@@ -370,12 +372,13 @@ function frame() {
   fx.update(dt);
   updateCamera(dt);
   // [v3-war] begin
-  markers.update(state.mode === 'play' ? enemies.alive((e) => e.tag && (e.tag === war.capture?.tag || e.tag === war.counter?.tag)) : [], elapsed);
+  markers.update(state.mode === 'play' ? enemies.alive((e) => e.tag && (e.tag === war.capture?.tag || e.tag === war.counter?.tag)) : [], elapsed, state.mode === 'play' ? war.squads.allies() : []);
   // [v3-war] end
   mapTimer -= dt;
   if (mapTimer <= 0) {
     mapTimer = 0.05;
     hud.drawMap((vehicle || player).position, camYaw, colliders, districts, enemies.list, war.target, graffiti.tags);
+    war.squads.drawRadar(hud.map, (vehicle || player).position, camYaw); // [v3-war]
   }
   retro.render(scene, camera);
   requestAnimationFrame(frame);

@@ -5,13 +5,13 @@ import * as THREE from 'three';
 const _v = new THREE.Vector3();
 const MAX_ARROWS = 12;
 
-function triangleTexture() {
+function triangleTexture(color = '#ff2a2a') {
   const c = document.createElement('canvas');
   c.width = c.height = 64;
   const g = c.getContext('2d');
   g.beginPath();
   g.moveTo(8, 10); g.lineTo(56, 10); g.lineTo(32, 54); g.closePath();
-  g.fillStyle = '#ff2a2a'; g.fill();
+  g.fillStyle = color; g.fill();
   g.lineWidth = 5; g.strokeStyle = '#000'; g.stroke();
   const t = new THREE.CanvasTexture(c);
   t.magFilter = THREE.NearestFilter;
@@ -23,7 +23,8 @@ export class Markers {
     this.scene = scene;
     this.camera = camera;
     this.mat = new THREE.SpriteMaterial({ map: triangleTexture(), depthTest: false, transparent: true });
-    this.sprites = new Map(); // враг → спрайт
+    this.allyMat = new THREE.SpriteMaterial({ map: triangleTexture('#3dff7a'), depthTest: false, transparent: true });
+    this.sprites = new Map(); // враг/союзник → спрайт
     this.root = document.createElement('div');
     this.root.id = 'enemyArrows';
     this.root.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:5;overflow:hidden';
@@ -39,8 +40,9 @@ export class Markers {
   }
 
   // list — живые враги текущей войны/контратаки.
-  update(list, t = 0) {
-    const set = new Set(list);
+  // allies — бойцы союзных бригад: зелёный треугольник, без стрелок.
+  update(list, t = 0, allies = []) {
+    const set = new Set([...list, ...allies]);
     for (const [e, s] of this.sprites) if (!set.has(e)) { this.scene.remove(s); this.sprites.delete(e); }
     const W = innerWidth, H = innerHeight, cx = W / 2, cy = H / 2, pad = 28;
     let n = 0;
@@ -68,6 +70,11 @@ export class Markers {
       a.style.left = `${cx + dx * k - 11}px`;
       a.style.top = `${cy + dy * k - 11}px`;
       a.style.transform = `rotate(${Math.atan2(dx, -dy)}rad)`;
+    }
+    for (const e of allies) {
+      let s = this.sprites.get(e);
+      if (!s) { s = new THREE.Sprite(this.allyMat); s.renderOrder = 999; s.scale.set(0.6, 0.6, 1); this.scene.add(s); this.sprites.set(e, s); }
+      s.position.set(e.position.x, 2.5 + 0.1 * Math.sin(t * 5), e.position.z);
     }
     for (; n < MAX_ARROWS; n++) this.arrows[n].style.display = 'none';
   }
