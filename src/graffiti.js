@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { BANKS } from './city.js';
+import { sfx } from './audio.js'; // [v3-audio]
 
 // Граффити-теги банков на стенах. Баллончиком (ЛКМ, ~2 с) чужой тег перекрашивается в наш.
 // Теги следуют за сменой владельца района (захват, контратака, ИИ-война).
@@ -143,6 +144,7 @@ export class Graffiti {
     a.tag.progress += dt / SPRAY_TIME;
     if (a.tag.progress < 1) return null;
     this.setTag(a.tag, 'green');
+    sfx.play('tag'); // [v3-audio]
     this.current = null;
     return a.tag;
   }

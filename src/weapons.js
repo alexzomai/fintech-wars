@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { BANKS, rayBoxes, randomRoadPoint, resolveCircle } from './city.js';
+import { sfx } from './audio.js'; // [v3-audio]
 
 // Арсенал в духе классических GTA: слоты 1–5, обойма/запас, перезарядка,
 // листание Q/E/колесом, колесо оружия на Tab с замедлением, крутящиеся пикапы.
@@ -208,6 +209,7 @@ export class Arsenal {
     const { camera, colliders, enemies, fx, player } = this.ctx;
     this.cd = d.cd;
     a.mag--;
+    sfx.play(d.id); // [v3-audio]
     camera.getWorldDirection(_dir);
     if (d.spread) {
       _dir.x += (Math.random() - 0.5) * 2 * d.spread;
@@ -236,6 +238,7 @@ export class Arsenal {
     const d = this.def, a = this.ammo[d.id];
     if (!a || d.thrown || this.reloadT > 0 || a.res <= 0 || a.mag >= d.mag) return;
     this.reloadT = d.reload;
+    sfx.play('reload'); // [v3-audio]
     this.refreshHud();
   }
   finishReload() {
@@ -266,6 +269,7 @@ export class Arsenal {
       fx.spark(e.position.clone().setY(1.4), 0xffd27a, 0.25);
       if (enemies.damage(e, d.dmg)) this.ctx.onKill(e);
     }
+    sfx.play(hitAny ? 'punch' : 'swing'); // [v3-audio]
     return hitAny;
   }
 
@@ -310,6 +314,7 @@ export class Arsenal {
     const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(0.3, 0), new THREE.MeshBasicMaterial({ color: 0x7ad7ff }));
     mesh.position.copy(player.position).setY(1.8);
     scene.add(mesh);
+    sfx.play('throw'); // [v3-audio]
     this.grenades.push({ mesh, vel: new THREE.Vector3(_dir.x * 18, 7 + _dir.y * 12, _dir.z * 18), t: 0 });
   }
   updateGrenades(dt) {
@@ -321,6 +326,7 @@ export class Arsenal {
       if (g.mesh.position.y > 0.3 && g.t < 2.5) continue;
       const at = g.mesh.position.clone().setY(0.5);
       fx.blast(at, 11);
+      sfx.play('explosion'); // [v3-audio]
       let n = 0;
       for (const e of enemies.alive()) {
         if (e.position.distanceTo(at) > 11) continue;
@@ -381,6 +387,7 @@ export class Arsenal {
     const d = BY_ID[type], a = this.ammo[type], info = PICKUPS[type];
     if (d.thrown) a.mag = Math.min(d.maxCount, a.mag + info.give);
     else a.res = Math.min(d.maxReserve, a.res + info.give);
+    sfx.play('pickup'); // [v3-audio]
     this.ctx.hud.toast(info.label, '#' + info.color.toString(16).padStart(6, '0'));
     if (this.current === type && a.mag === 0 && !d.thrown) this.startReload();
     this.refreshHud();

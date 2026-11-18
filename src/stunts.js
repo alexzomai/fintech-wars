@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { roadCoord, N } from './city.js';
+import { sfx } from './audio.js'; // [v3-audio]
 
 // Уникальные прыжки: трамплины на дорогах. Въехал на скорости — полёт с замедлением,
 // кинокамерой сбоку и надписью «ВИРУСНЫЙ РОЛИК! N млн просмотров · Охваты +».
@@ -86,6 +87,7 @@ export class Stunts {
       this.prevAlong = along;
       if ((along > LEN * 0.85 || prev > LEN * 0.5) && vAlong > MIN_SPEED) {
         car.launch(car.speed * 0.32 + 3);
+        sfx.play('whoosh'); // [v3-audio]
         this.active = { t: 0 };
         this.state.timeScale = 0.35;
       }
@@ -102,6 +104,7 @@ export class Stunts {
     const views = (0.8 + Math.random() * 2.2).toFixed(1).replace('.', ',');
     this.el.innerHTML = `ВИРУСНЫЙ РОЛИК!<small>${views} млн просмотров · Охваты +15</small>`;
     this.el.classList.add('show');
+    sfx.play('viral'); // [v3-audio]
     clearTimeout(this.hideT);
     this.hideT = setTimeout(() => this.el.classList.remove('show'), 2600);
     onLanded?.();

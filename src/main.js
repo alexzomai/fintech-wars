@@ -26,6 +26,9 @@ import { initStory } from './story.js';
 import { initNeon } from './neon.js';
 import { initPauseMenu } from './pausemenu.js';
 // [v3-neon] end
+// [v3-audio] begin
+import { initAudio } from './audio.js';
+// [v3-audio] end
 import '@fontsource/press-start-2p/cyrillic-400.css';
 import '@fontsource/press-start-2p/latin-400.css';
 
@@ -145,6 +148,7 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyR') throwGrenade();
   // [v3-weapons] end
   if (e.code === 'KeyG' && !vehicle) allies.recruit(player.position, camera.getWorldDirection(new THREE.Vector3())); // [v3-pop]
+  if (e.code === 'KeyZ') audio.nextStation(); // [v3-audio]
 });
 addEventListener('keyup', (e) => { if (KEYS[e.code]) input[KEYS[e.code]] = false; });
 // [v3-weapons] begin — Tab: колесо оружия с замедлением времени
@@ -229,6 +233,9 @@ const throwGrenade = () => arsenal.throwGrenade();
   fx.blast = (at, r, c) => { npcs.panic(at, 30); return blastOrig(at, r, c); };
 }
 // [v3-pop] end
+// [v3-audio] begin
+const audio = initAudio({ hud, war, districts, graffiti, input, arsenal, player });
+// [v3-audio] end
 
 // --- Урон, смерть, финал ---
 function hurt(dmg) {
@@ -364,6 +371,7 @@ function step(dt) {
     }
   }
   arsenal.update(dt, input.fire); // [v3-weapons]
+  audio.update(dt, { inCar: !!vehicle, speed: vehicle ? vehicle.speed : 0 }); // [v3-audio]
   for (const c of cars) if (c !== vehicle) c.update(dt, null, colliders);
 
   const actor = vehicle || player;
@@ -443,4 +451,5 @@ window.__game = {
   toggleCar, shoot, throwGrenade, cam: camera, renderer, jury,
   neon, pause, // [v3-neon]
   npcs, allies, // [v3-pop]
+  audio, // [v3-audio]
 };
