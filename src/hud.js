@@ -1,67 +1,154 @@
 import { BANKS } from './city.js';
+import { drawWeaponIcon } from './weapons.js';
 
 const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+// Разметка подсказок: ~клавиша~ → выделенная клавиша.
+const keys = (s) => esc(s).replace(/~([^~]+)~/g, '<kbd>$1</kbd>');
 
+// Показ элемента на время: класс show + таймер.
+function flash(el, ms, timers, key) {
+  el.classList.add('show');
+  clearTimeout(timers[key]);
+  timers[key] = setTimeout(() => el.classList.remove('show'), ms);
+}
+
+// Интерфейс в духе классических GTA: блок справа сверху, радар, хелпбокс, субтитры, район/машина.
 export class Hud {
   constructor() {
     this.el = {};
-    for (const id of ['money', 'speed', 'status', 'matchTimer', 'arrow', 'hint', 'toast', 'alert', 'hpFill', 'hpText', 'scoreG', 'scoreR', 'scoreY', 'crosshair', 'weapon', 'sprayBar']) this.el[id] = $(id);
+    for (const id of ['hudClock', 'money', 'armor', 'armorFill', 'hpFill', 'weapon', 'weaponIcon', 'weaponAmmo', 'wanted',
+      'help', 'subtitle', 'zoneName', 'carName', 'passed', 'speed', 'crosshair', 'sprayBar', 'reloadBar', 'arrow']) this.el[id] = $(id);
     this.map = $('minimap').getContext('2d');
-    this.toastTimer = 0;
-    this.alertTimer = 0;
+    this.timers = {};
+    this.money = 0;
+    this.moneyShown = 0;
+    this.statusKey = '';
+    this.setClock(18, 30);
+    this.setWanted(0);
+    this.setArmor(0);
   }
 
-  setMoney(v) { this.el.money.textContent = `$${v}`; }
+  // --- Правый верхний блок ---
+  setClock(h, m) { this.el.hudClock.textContent = `${String(h).padStart(2, '0')}:${String(Math.floor(m)).padStart(2, '0')}`; }
+  // Деньги «докручиваются» к новому значению.
+  setMoney(v) {
+    this.money = v;
+    if (this.moneyRaf) return;
+    const tick = () => {
+      const d = this.money - this.moneyShown;
+      if (Math.abs(d) < 1) { this.moneyShown = this.money; this.moneyRaf = 0; }
+      else { this.moneyShown += Math.sign(d) * Math.max(1, Math.abs(d) * 0.12); this.moneyRaf = requestAnimationFrame(tick); }
+      this.el.money.textContent = `$${String(Math.round(this.moneyShown)).padStart(8, '0')}`;
+    };
+    tick();
+  }
+  setHp(hp, max) { this.el.hpFill.style.width = `${Math.max(0, Math.min(1, hp / max)) * 100}%`; }
+  setArmor(v, max = 100) {
+    this.el.armor.style.display = v > 0 ? 'block' : 'none';
+    this.el.armorFill.style.width = `${Math.max(0, Math.min(1, v / max)) * 100}%`;
+  }
+  // Звёзды «Проверки ЦБ»: до 6, пустые не показываем.
+  setWanted(n) {
+    n = Math.max(0, Math.min(6, Math.round(n)));
+    if (this.wanted === n) return;
+    this.wanted = n;
+    this.el.wanted.textContent = '★'.repeat(n);
+  }
+
+  // --- Оружие ---
+  setWeapon(def, ammo = '', reloading = false) {
+    if (typeof def === 'string') def = { id: def, name: def };
+    if (this.weaponId !== def.id) {
+      this.weaponId = def.id;
+      drawWeaponIcon(this.el.weaponIcon, def.id);
+      this.el.weapon.title = def.name;
+      this.el.weapon.classList.remove('swap'); void this.el.weapon.offsetWidth; this.el.weapon.classList.add('swap');
+    }
+    this.el.weaponAmmo.textContent = reloading ? '...' : ammo;
+  }
+  setReload(k) {
+    const el = this.el.reloadBar;
+    el.style.display = k == null ? 'none' : 'block';
+    if (k != null) el.firstChild.style.width = `${Math.min(1, Math.max(0, k)) * 100}%`;
+  }
+  showWheel(items, sel, onHover) {
+    const ring = $('wheelItems');
+    ring.textContent = '';
+    items.forEach((w, i) => {
+      const a = (i / items.length) * Math.PI * 2;
+      const it = document.createElement('div');
+      it.className = 'wheelItem' + (w.empty ? ' empty' : '');
+      it.dataset.id = w.id;
+      it.style.left = `${50 + Math.sin(a) * 36}%`;
+      it.style.top = `${50 - Math.cos(a) * 36}%`;
+      const c = document.createElement('canvas');
+      c.width = 78; c.height = 48;
+      drawWeaponIcon(c, w.id);
+      const k = document.createElement('b'); k.textContent = w.slot;
+      const n = document.createElement('span'); n.textContent = w.short;
+      const am = document.createElement('i'); am.textContent = w.ammo;
+      it.append(k, c, n, am);
+      it.addEventListener('mouseenter', () => onHover(w.id));
+      ring.appendChild(it);
+    });
+    $('wheel').classList.add('show');
+    this.wheelSelect(sel, items.find((w) => w.id === sel)?.name || '');
+  }
+  wheelSelect(id, name) {
+    for (const it of $('wheelItems').children) it.classList.toggle('sel', it.dataset.id === id);
+    $('wheelName').textContent = name;
+  }
+  hideWheel() { $('wheel').classList.remove('show'); }
+
+  // --- Тексты как в SA ---
+  // Хелпбокс слева сверху, 5 с. Клавиши в тильдах: «Нажмите ~F~».
+  help(text, ms = 5000) {
+    this.el.help.innerHTML = keys(text);
+    flash(this.el.help, ms, this.timers, 'help');
+  }
+  // Субтитры цели внизу по центру. html: ключевые слова можно обернуть в <b style="color:…">.
+  subtitle(html, ms = 4500) {
+    this.el.subtitle.innerHTML = html;
+    flash(this.el.subtitle, ms, this.timers, 'subtitle');
+  }
+  showDistrict(name, color = '#fff') {
+    this.el.zoneName.textContent = name;
+    this.el.zoneName.style.color = color;
+    flash(this.el.zoneName, 3500, this.timers, 'zone');
+  }
+  showVehicle(name) {
+    this.el.carName.textContent = name;
+    flash(this.el.carName, 3000, this.timers, 'car');
+  }
+  missionPassed(reward = 500) {
+    $('passedReward').textContent = reward ? `$${reward}` : '';
+    flash(this.el.passed, 4000, this.timers, 'passed');
+    jingle();
+  }
+
+  // --- Совместимость со старым API ---
+  toast(text, color = '#fff') { this.subtitle(color === '#fff' ? esc(text) : `<b style="color:${color}">${esc(text)}</b>`, 2600); }
+  alert(text, color = '#ffd23f') { this.subtitle(`<b style="color:${color}">${esc(text)}</b>`, 4500); }
+  // Статус войны → хелпбокс, только когда смысл сменился (цифры обновляем молча).
+  setStatus(t) {
+    t = t.replace(/^\p{Extended_Pictographic}️?\s*/u, '').replace('Баллончик [2]', 'Баллончик ~5~').replace(/ЛКМ/g, '~ЛКМ~');
+    const key = t.replace(/\d+/g, '#');
+    if (key !== this.statusKey) { this.statusKey = key; if (t) this.help(t, 6000); }
+    else if (this.el.help.classList.contains('show') && this.el.help.dataset.t !== t) this.el.help.innerHTML = keys(t);
+    this.el.help.dataset.t = t;
+  }
+  setScore() {}
+  setMatchTimer() {}
+  income() {}
+  setHint(t) { if (this.el.hintText !== t) { this.el.hintText = t; $('hint').innerHTML = keys(t); } }
   setSpeed(v, inCar) { this.el.speed.textContent = inCar ? `${Math.round(Math.abs(v) * 3.6)} км/ч` : ''; }
-  setStatus(t) { if (this.el.status.textContent !== t) this.el.status.textContent = t; }
-  setHint(t) { if (this.el.hint.textContent !== t) this.el.hint.textContent = t; }
-  setWeapon(w) { this.el.weapon.textContent = w === 'spray' ? '[2] Баллончик' : '[1] Пистолет'; this.el.weapon.style.color = w === 'spray' ? '#7dff8a' : '#fff'; }
   setSpray(k) {
     this.el.sprayBar.style.display = k == null ? 'none' : 'block';
     if (k != null) this.el.sprayBar.firstChild.style.width = `${Math.min(1, k) * 100}%`;
   }
   setCrosshair(on) { this.el.crosshair.style.display = on ? 'block' : 'none'; }
-  setScore(g, r, y) { this.el.scoreG.textContent = g; this.el.scoreR.textContent = r; this.el.scoreY.textContent = y; }
-
-  setHp(hp, max) {
-    const k = Math.max(0, hp / max);
-    this.el.hpFill.style.width = `${k * 100}%`;
-    this.el.hpFill.style.background = k > 0.5 ? '#2ecc59' : k > 0.25 ? '#f5c518' : '#e8423a';
-    this.el.hpText.textContent = Math.ceil(Math.max(0, hp));
-  }
-
-  setMatchTimer(t) {
-    const s = Math.max(0, Math.ceil(t));
-    this.el.matchTimer.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-    this.el.matchTimer.classList.toggle('low', s <= 30);
-  }
-
-  toast(text, color = '#ffd23f') {
-    const el = this.el.toast;
-    el.textContent = text;
-    el.style.color = color;
-    el.classList.add('show');
-    clearTimeout(this.toastTimer);
-    this.toastTimer = setTimeout(() => el.classList.remove('show'), 1800);
-  }
-
-  // Крупный баннер-тревога сверху.
-  alert(text, color) {
-    const el = this.el.alert;
-    el.textContent = text;
-    el.style.background = color;
-    el.classList.add('show');
-    clearTimeout(this.alertTimer);
-    this.alertTimer = setTimeout(() => el.classList.remove('show'), 3500);
-  }
-
-  income(v) {
-    const el = document.createElement('div');
-    el.className = 'income';
-    el.textContent = `+$${v}`;
-    this.el.money.parentElement.appendChild(el);
-    setTimeout(() => el.remove(), 1200);
-  }
+  setArrow() {} // цель теперь показывается иконкой на краю радара
 
   flashDamage() {
     document.body.classList.remove('hurt');
@@ -69,50 +156,40 @@ export class Hud {
     document.body.classList.add('hurt');
   }
 
-  setArrow(from, to, camYaw) {
-    if (!to) { this.el.arrow.style.display = 'none'; return; }
-    this.el.arrow.style.display = 'block';
-    const ang = Math.atan2(to.x - from.x, to.z - from.z) - camYaw;
-    this.el.arrow.style.transform = `rotate(${-ang}rad)`;
-  }
-
-  // Мини-карта: районы в цвете владельца, повёрнута по взгляду камеры.
+  // Радар: вращается с камерой, территории цветом владельца, N на краю, цели по краю.
   drawMap(center, yaw, colliders, districts, enemies, target, tags = []) {
     const ctx = this.map;
-    const W = ctx.canvas.width, H = ctx.canvas.height, s = 0.75;
+    const W = ctx.canvas.width, H = ctx.canvas.height, s = 0.75, R = W / 2;
     const c = Math.cos(yaw), sn = Math.sin(yaw);
     const a = -s * c, b = -s * sn, cc = s * sn, d = -s * c;
     const toScreen = (x, z) => [W / 2 + a * (x - center.x) + cc * (z - center.z), H / 2 + b * (x - center.x) + d * (z - center.z)];
+    const clampEdge = (x, y, m) => {
+      const rx = x - W / 2, ry = y - H / 2, len = Math.hypot(rx, ry), maxR = R - m;
+      return len > maxR ? [W / 2 + (rx * maxR) / len, H / 2 + (ry * maxR) / len, true] : [x, y, false];
+    };
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, W, H);
     ctx.save();
     ctx.beginPath();
-    ctx.arc(W / 2, H / 2, W / 2, 0, Math.PI * 2);
+    ctx.arc(W / 2, H / 2, R, 0, Math.PI * 2);
     ctx.clip();
-    ctx.fillStyle = '#2b2b33';
+    // Подложка = дороги (светлые), кварталы — тёмно-зелёные.
+    ctx.fillStyle = '#d9d9d2';
     ctx.fillRect(0, 0, W, H);
     ctx.setTransform(a, b, cc, d, W / 2 - (a * center.x + cc * center.z), H / 2 - (b * center.x + d * center.z));
-    for (const dist of districts) {
-      ctx.fillStyle = BANKS[dist.owner].css + '66';
-      ctx.fillRect(dist.minX, dist.minZ, dist.maxX - dist.minX, dist.maxZ - dist.minZ);
-    }
-    ctx.fillStyle = '#d8d2c4aa';
+    ctx.fillStyle = '#3b5a46';
     for (const r of colliders) {
-      if (r.maxY > 150 || r.maxX - r.minX < 2) continue;
-      if (Math.abs(r.minX - center.x) > 200 || Math.abs(r.minZ - center.z) > 200) continue;
+      if (r.maxX - r.minX < 2) continue;
+      if (Math.abs(r.minX - center.x) > 220 || Math.abs(r.minZ - center.z) > 220) continue;
       ctx.fillRect(r.minX, r.minZ, r.maxX - r.minX, r.maxZ - r.minZ);
     }
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    // Точки захвата.
+    // Территории банков поверх, как территории банд.
     for (const dist of districts) {
-      const [x, y] = toScreen(dist.zone.x, dist.zone.z);
-      ctx.strokeStyle = BANKS[dist.owner].css;
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(x, y, 6, 0, Math.PI * 2);
-      ctx.stroke();
+      ctx.fillStyle = BANKS[dist.owner].css + '5c';
+      ctx.fillRect(dist.minX, dist.minZ, dist.maxX - dist.minX, dist.maxZ - dist.minZ);
     }
-    // Граффити: ромбики в цвете владельца тега.
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    // Граффити: маленькие ромбики в цвете владельца.
     for (const t of tags) {
       const [x, y] = toScreen(t.pos.x, t.pos.z);
       ctx.fillStyle = BANKS[t.owner].css;
@@ -122,27 +199,69 @@ export class Hud {
       ctx.moveTo(x, y - 4); ctx.lineTo(x + 4, y); ctx.lineTo(x, y + 4); ctx.lineTo(x - 4, y); ctx.closePath();
       ctx.fill(); ctx.stroke();
     }
+    // Враги — красные точки (треугольник, если сильно выше/ниже).
     for (const e of enemies) {
       if (e.dead) continue;
-      const [x, y] = toScreen(e.position.x, e.position.z);
-      ctx.fillStyle = BANKS[e.bank].css;
-      ctx.fillRect(x - 2.5, y - 2.5, 5, 5);
-    }
-    if (target) {
-      let [x, y] = toScreen(target.x, target.z);
-      const rx = x - W / 2, ry = y - H / 2, len = Math.hypot(rx, ry), maxR = W / 2 - 9;
-      if (len > maxR) { x = W / 2 + (rx * maxR) / len; y = H / 2 + (ry * maxR) / len; }
-      ctx.fillStyle = '#ffffff';
+      const [x, y, edge] = clampEdge(...toScreen(e.position.x, e.position.z), 4);
+      if (edge) continue;
+      ctx.fillStyle = '#e8312a';
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 1.5;
+      const dy = e.position.y - center.y;
       ctx.beginPath();
-      ctx.arc(x, y, 5, 0, Math.PI * 2);
-      ctx.fill();
+      if (Math.abs(dy) > 3) { const k = dy > 0 ? -1 : 1; ctx.moveTo(x, y + 5 * k); ctx.lineTo(x - 5, y - 4 * k); ctx.lineTo(x + 5, y - 4 * k); ctx.closePath(); }
+      else ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
     }
-    ctx.fillStyle = '#ffffff';
+    // Цель: иконка-мишень, прижимается к краю.
+    if (target) {
+      const [x, y] = clampEdge(...toScreen(target.x, target.z), 11);
+      ctx.fillStyle = '#000';
+      ctx.fillRect(x - 8, y - 8, 16, 16);
+      ctx.fillStyle = '#ffd23f';
+      ctx.fillRect(x - 6, y - 6, 12, 12);
+      ctx.fillStyle = '#000';
+      ctx.font = 'bold 11px "Russo One", sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('!', x, y + 1);
+    }
+    // Игрок — белая стрелка в центре.
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(W / 2, H / 2 - 8);
-    ctx.lineTo(W / 2 - 6, H / 2 + 6);
-    ctx.lineTo(W / 2 + 6, H / 2 + 6);
-    ctx.fill();
+    ctx.moveTo(W / 2, H / 2 - 9);
+    ctx.lineTo(W / 2 - 7, H / 2 + 7);
+    ctx.lineTo(W / 2, H / 2 + 3);
+    ctx.lineTo(W / 2 + 7, H / 2 + 7);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
     ctx.restore();
+    // Метка севера (−Z) в чёрном кружке на краю.
+    const [nx, ny] = clampEdge(...toScreen(center.x, center.z - 1e4), 12);
+    ctx.fillStyle = '#000';
+    ctx.beginPath(); ctx.arc(nx, ny, 11, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = '13px "Russo One", "Arial Black", sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('N', nx, ny + 1);
   }
+}
+
+// Короткий джингл «задание выполнено».
+let actx = null;
+function jingle() {
+  try {
+    actx ||= new (window.AudioContext || window.webkitAudioContext)();
+    const t0 = actx.currentTime;
+    [523, 659, 784, 1047].forEach((f, i) => {
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.type = 'square'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t0 + i * 0.12);
+      g.gain.exponentialRampToValueAtTime(0.08, t0 + i * 0.12 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + i * 0.12 + (i === 3 ? 0.6 : 0.14));
+      o.connect(g).connect(actx.destination);
+      o.start(t0 + i * 0.12); o.stop(t0 + i * 0.12 + 0.7);
+    });
+  } catch { /* без звука */ }
 }
