@@ -122,12 +122,12 @@ export class Hud {
     items.forEach((w, i) => {
       const a = (i / items.length) * Math.PI * 2;
       const it = document.createElement('div');
-      it.className = 'wheelItem' + (w.empty ? ' empty' : '');
+      it.className = 'wheelItem' + (w.empty ? ' empty' : '') + (w.id ? '' : ' none');
       it.dataset.id = w.id;
-      it.style.left = `${50 + Math.sin(a) * 36}%`;
-      it.style.top = `${50 - Math.cos(a) * 36}%`;
+      it.style.left = `${50 + Math.sin(a) * 39}%`;
+      it.style.top = `${50 - Math.cos(a) * 39}%`;
       const c = document.createElement('canvas');
-      c.width = 78; c.height = 48;
+      c.width = 64; c.height = 40;
       drawWeaponIcon(c, w.id);
       const k = document.createElement('b'); k.textContent = w.slot;
       const n = document.createElement('span'); n.textContent = w.short;
@@ -166,7 +166,7 @@ export class Hud {
   alert(text, color = '#ffd23f') { this.subtitle(`<b style="color:${color}">${esc(text)}</b>`, 4500); }
   // Статус войны → хелпбокс, только когда смысл сменился (цифры обновляем молча).
   setStatus(t) {
-    t = t.replace(/^\p{Extended_Pictographic}️?\s*/u, '').replace('Баллончик [2]', 'Баллончик ~5~').replace(/ЛКМ/g, '~ЛКМ~');
+    t = t.replace(/^\p{Extended_Pictographic}️?\s*/u, '').replace('Баллончик [2]', 'Баллончик ~9~').replace(/ЛКМ/g, '~ЛКМ~');
     const key = t.replace(/\d+/g, '#');
     if (key !== this.statusKey) { this.statusKey = key; if (t) this.help(t, 6000, 'status:' + key); }
     else if (this.ch.help.cur?.key === 'status:' + key && this.ch.help.cur.content !== t) { this.ch.help.cur.content = t; this.el.help.innerHTML = keys(t); }

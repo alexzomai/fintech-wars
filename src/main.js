@@ -205,8 +205,9 @@ function onKill(e) {
 
 // [v3-weapons] begin
 const arsenal = new Arsenal({
-  scene, camera, player, enemies, fx, hud, graffiti, war, colliders, state,
+  scene, camera, player, enemies, fx, hud, graffiti, war, colliders, state, cars, traffic,
   getVehicle: () => vehicle, onKill: (e) => onKill(e),
+  kick: (a) => { camPitch = Math.min(0.6, camPitch + a); }, // отдача подбрасывает прицел
 });
 arsenal.movePickupsNear(spawnPoint());
 const shoot = () => arsenal.shoot();
@@ -337,7 +338,7 @@ function step(dt) {
     }
     stunts.update(dt, vehicle, () => { war.reach += 15; war.addMoney(200); });
   } else {
-    player.update(dt, input, camYaw, colliders, cars, { aiming: input.fire && ['pistol', 'smg'].includes(arsenal.current), spraying: input.fire && arsenal.current === 'spray', aimPitch: camPitch });
+    player.update(dt, input, camYaw, colliders, cars, { aiming: input.fire && arsenal.aiming, spraying: input.fire && arsenal.current === 'spray', aimPitch: camPitch });
     traffic.collide(player);
     for (const c of cars) {
       _v.subVectors(player.position, c.position).setY(0);
@@ -383,7 +384,7 @@ function updateZones(t) {
 }
 
 // [v3-jury] begin
-jury.cheats = initCheats({ war, player, traffic, hud });
+jury.cheats = initCheats({ war, player, traffic, hud, arsenal }); // [v3-weapons] arsenal для ARSENAL
 jury.story = initStory({ renderer, scene, camera, retro, player, hud });
 // [v3-jury] end
 const clock = new THREE.Clock();

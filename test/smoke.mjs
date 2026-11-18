@@ -136,8 +136,8 @@ const tag = await g(() => {
   return { x: t.pos.x, z: t.pos.z, total: c.graffiti.inDistrict(t.d).length };
 });
 check(tag.total >= 4, `в районе есть теги конкурента (${tag.total})`);
-await page.keyboard.press('Digit5');
-check(await g(() => window.__game.weapon === 'spray'), 'баллончик выбирается клавишей 5');
+await page.keyboard.press('Digit9');
+check(await g(() => window.__game.weapon === 'spray'), 'баллончик выбирается клавишей 9');
 await aimAt(tag.x, 2.6, tag.z);
 await page.mouse.down();
 await page.waitForTimeout(1000);

@@ -1,5 +1,5 @@
 // Чит-коды: набираешь слово во время игры (буфер последних букв копится параллельно с управлением).
-export function initCheats({ war, player, traffic, hud }) {
+export function initCheats({ war, player, traffic, hud, arsenal }) {
   // «ЧИТ АКТИВИРОВАН» — субтитром внизу, как и остальные события.
   // Один субтитр на чит: «ЧИТ АКТИВИРОВАН · что случилось».
   const say = (text, color) => hud.subtitle(`<b style="color:#ffd23f">ЧИТ АКТИВИРОВАН</b> · <b style="color:${color}">${text}</b>`, 3500);
@@ -9,6 +9,7 @@ export function initCheats({ war, player, traffic, hud }) {
   traffic.update = (dt, obs) => { if (performance.now() < sanctionsUntil) return; origUpdate(dt, obs); };
 
   const CHEATS = {
+    ARSENAL: () => { const heavy = arsenal.giveAll(); say(`ARSENAL: всё оружие · в руках ${heavy}`, '#ff8a3a'); },
     CASHBACK: () => { war.addMoney(5000); player.hp = player.maxHp; say('CASHBACK: +$5000 и здоровье', '#7dff8a'); },
     KEYRATE: () => say('Ключевая ставка снижена. Розыск сброшен', '#7ad7ff'),
     SANCTIONS: () => { sanctionsUntil = performance.now() + 10000; say('САНКЦИИ: трафик встал на 10 с', '#ff6b6b'); },

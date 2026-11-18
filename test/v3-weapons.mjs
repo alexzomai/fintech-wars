@@ -35,13 +35,13 @@ await wheel(120); check(await cur() === 'smg', 'колесо вниз → авт
 await wheel(120); check(await cur() === 'grenade', 'колесо вниз → граната');
 await wheel(-120); check(await cur() === 'smg', 'колесо вверх → автомат');
 await press('Digit1'); check(await cur() === 'fists', '1 → кулаки');
-await press('Digit5'); check(await cur() === 'spray', '5 → баллончик');
+await press('Digit9'); check(await cur() === 'spray', '9 → баллончик');
 await wheel(120); check(await cur() === 'fists', 'по кругу: баллончик → кулаки');
 await press('KeyQ'); await press('KeyE'); check(await cur() === 'fists', 'Q/E оружие не листают');
 await g(() => { window.__game.arsenal.ammo.grenade.mag = 0; });
-await press('Digit3'); await wheel(120);
+await press('Digit4'); await wheel(120);
 check(await cur() === 'spray', 'граната без запаса пропускается (автомат → баллончик)');
-await press('Digit4'); check(await cur() === 'spray', 'пустую гранату цифрой не выбрать');
+await press('Digit8'); check(await cur() === 'spray', 'пустую гранату цифрой не выбрать');
 await g(() => { window.__game.arsenal.ammo.grenade.mag = 2; });
 await wheel(120);
 check(await cur() === 'fists', 'колесо мыши листает');
@@ -81,7 +81,7 @@ const punched = await g(() => {
   return { hp, punchT: c.player.h.punchT };
 });
 check(punched.hp === 20 && punched.punchT > 0, `удар кулаком: −20 hp (осталось ${punched.hp})`);
-await press('Digit3');
+await press('Digit4');
 
 // HUD-тексты для скриншота.
 await g(() => {
@@ -116,7 +116,7 @@ check(await cur() === 'pistol' && await g(() => window.__game.state.timeScale) =
 // Выбор направлением мыши (pointer lock в headless нет — дергаем тот же обработчик).
 await page.keyboard.down('Tab');
 await g(() => window.__game.arsenal.wheelMove(0, 80)); // вниз → между 3 и 4: слот 3/4
-await g(() => window.__game.arsenal.wheelMove(-200, -60)); // влево-вверх → баллончик (слот 5)
+await g(() => window.__game.arsenal.wheelMove(-80, -180)); // влево-вверх → баллончик (слот 9)
 await page.keyboard.up('Tab');
 check(await cur() === 'spray', 'колесо: выбор направлением мыши');
 
