@@ -43,6 +43,9 @@ import { attachVoice } from './voice.js';
 // [v3-decor] begin
 import { initDecor } from './decor.js';
 // [v3-decor] end
+// [v3-palych] begin
+import { initPalych } from './missions.js';
+// [v3-palych] end
 import '@fontsource/press-start-2p/cyrillic-400.css';
 import '@fontsource/press-start-2p/latin-400.css';
 
@@ -303,11 +306,15 @@ document.getElementById('play').addEventListener('click', () => {
     return;
   }
   // [v3-jury] end
+  // [v3-palych] begin — пролог после редактора тега
+  if (!palych.prologueDone) { palych.prologue(() => document.getElementById('play').click()); return; }
+  // [v3-palych] end
   document.getElementById('start').classList.add('hidden');
   state.mode = 'play';
   canvas.requestPointerLock?.();
   hud.subtitle(`Перекрась <b style="color:${BANKS.red.css}">граффити конкурентов</b> и забери <b style="color:${BANKS.green.css}">их районы</b>`); // [v3-weapons]
   setWeapon('pistol');
+  palych.start(); // [v3-palych]
 });
 document.getElementById('again').addEventListener('click', () => location.reload());
 
@@ -441,6 +448,9 @@ window.__absurd = { events: marketEvents, voice };
 // [v3-decor] begin
 const decor = initDecor({ scene, colliders, walls, districts, fx, hud, war, state, camera, input, player, getVehicle: () => vehicle, getWeapon: () => arsenal.current });
 // [v3-decor] end
+// [v3-palych] begin
+const palych = initPalych({ state, hud, war, graffiti, districts, player, getVehicle: () => vehicle, input });
+// [v3-palych] end
 const clock = new THREE.Clock();
 let mapTimer = 0, elapsed = 0;
 updateCamera(0, true);
@@ -486,4 +496,5 @@ window.__game = {
   neon, pause, // [v3-neon]
   npcs, allies, // [v3-pop]
   audio, // [v3-audio]
+  palych, // [v3-palych]
 };
