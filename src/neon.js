@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BANKS, HALF, ROAD, ownerListeners } from './city.js';
+import { BANKS, HALF, ROAD, N, BLOCK, roadCoord, ownerListeners } from './city.js';
 import { createDaytime } from './daytime.js';
 
 // «Неон и город»: неоновые баннеры и голограммы на штабах, медиафасады с живыми новостями,
@@ -222,7 +222,7 @@ function drawQrBoard(g) {
   g.fillText('sber-game', tx, 90); g.fillText('.vercel.app', tx, 100);
 }
 
-export function initNeon({ scene, districts, sun, camera, hud, state }) {
+export function initNeon({ scene, districts, sun, camera, hud, state, renderer, cars, traffic }) {
   const daytime = createDaytime();
   const hemi = scene.children.find((o) => o.isHemisphereLight);
   const box = new THREE.BoxGeometry(1, 1, 1);
@@ -405,37 +405,48 @@ export function initNeon({ scene, districts, sun, camera, hud, state }) {
   addBoard(-50, edge + 14, Math.PI, qrMat, -1);
   const qrBoard = { x: -50, y: 18, z: edge + 14 };
 
-  // --- 3. Неоновая ночь ---
-  const day = {
-    bg: scene.background, fog: scene.fog.color.clone(), near: scene.fog.near, far: scene.fog.far,
-    sun: sun.intensity, sunColor: sun.color.clone(),
-    hemi: hemi?.intensity, sky: hemi?.color.clone(), ground: hemi?.groundColor.clone(),
+  // --- 3. Свет суток: ясный день → закат → светлая «киношная» ночь ---
+  // Три пресета; итог = lerp(день, закат, s), затем lerp(→ ночь, n). Солнце двигаем сами
+  // (после updateCamera в main.js): днём высоко и белое, на закате низко и оранжевое, ночью — луна.
+  const C = (h) => new THREE.Color(h);
+  const PRESETS = {
+    day: {
+      sky: ['#3d7fd6', '#7fb4ec', '#cfe6fb', '#eef6ff'], fog: C(0xd6e6f2), near: 90, far: 520,
+      sun: 3.4, sunColor: C(0xfff6e6), sunOff: [-45, 160, 35], hemi: 1.9, hsky: C(0xeaf4ff), hground: C(0x9a9284),
+      exposure: 1.25, shadow: 0.55,
+    },
+    sunset: {
+      sky: ['#2a1d4f', '#8a4a7a', '#f08a5a', '#ffc27a'], fog: C(0xc9786f), near: 50, far: 360,
+      sun: 3.2, sunColor: C(0xffa25a), sunOff: [-110, 70, 50], hemi: 1.3, hsky: C(0xffc9a0), hground: C(0x4a3a5a),
+      exposure: 1.1, shadow: 0.65,
+    },
+    night: {
+      sky: ['#070b2e', '#141c5a', '#2c2a78', '#5a3a8e'], fog: C(0x3c3a70), near: 45, far: 320,
+      sun: 1.1, sunColor: C(0x8c9cff), sunOff: [60, 120, -40], hemi: 0.95, hsky: C(0x8890e0), hground: C(0x3a3456),
+      exposure: 1.2, shadow: 0.5,
+    },
   };
-  const nightBg = (() => {
-    const c = document.createElement('canvas');
-    c.width = 4; c.height = 256;
-    const g = c.getContext('2d');
-    const grad = g.createLinearGradient(0, 0, 0, 256);
-    grad.addColorStop(0, '#05051a'); grad.addColorStop(0.45, '#1c0f45');
-    grad.addColorStop(0.75, '#5a1a6a'); grad.addColorStop(0.9, '#ff4fa8'); grad.addColorStop(1, '#2a1640');
-    g.fillStyle = grad; g.fillRect(0, 0, 4, 256);
-    const t = new THREE.CanvasTexture(c);
-    t.colorSpace = THREE.SRGBColorSpace;
-    return t;
-  })();
-  const night = {
-    fog: new THREE.Color(0x2a1648), near: 25, far: 280, sun: 0.35, sunColor: new THREE.Color(0x7a6aff),
-    hemi: 0.45, sky: new THREE.Color(0x6a50c0), ground: new THREE.Color(0x101028),
-  };
+  const skyCanvas = document.createElement('canvas');
+  skyCanvas.width = 4; skyCanvas.height = 256;
+  const skyTex = new THREE.CanvasTexture(skyCanvas);
+  skyTex.colorSpace = THREE.SRGBColorSpace;
+  scene.background = skyTex;
+  const cur = { sky: [C(0), C(0), C(0), C(0)], fog: C(0), sunColor: C(0), hsky: C(0), hground: C(0), sunOff: new THREE.Vector3() };
+  const tmp = C(0), tmp2 = C(0);
+  function mix3(key, s, n, out) {
+    const { day: d, sunset: e, night: g } = PRESETS;
+    if (typeof d[key] === 'number') return (d[key] + (e[key] - d[key]) * s) * (1 - n) + g[key] * n;
+    tmp.copy(d[key]).lerp(e[key], s); return out.copy(tmp).lerp(g[key], n);
+  }
   const glass = [];
   scene.traverse((o) => {
     const m = o.material;
     if (o.isMesh && m?.userData?.glass && !glass.some((x) => x.m === m)) glass.push({ m, base: m.emissiveIntensity });
   });
-  let nk = 0;
+  let nk = -1, sk = -1, lastSky = '';
 
-  // Неоновый дождь: короткие отрезки в коробке вокруг камеры.
-  const DROPS = 900, R = 32, TOP = 26;
+  // Неоновый дождь: короткие отрезки в коробке вокруг камеры (только глубокой ночью).
+  const DROPS = 700, R = 32, TOP = 26;
   const rainPos = new Float32Array(DROPS * 6), rainCol = new Float32Array(DROPS * 6);
   const speed = new Float32Array(DROPS);
   const pal = [new THREE.Color(0x7ffcff), new THREE.Color(0xff6ad5), new THREE.Color(0xb8b0ff)];
@@ -455,34 +466,132 @@ export function initNeon({ scene, districts, sun, camera, hud, state }) {
   rain.visible = false;
   scene.add(rain);
 
-  function applyNight(k) {
-    scene.background = k > 0.5 ? nightBg : day.bg;
-    scene.fog.color.copy(day.fog).lerp(night.fog, k);
-    scene.fog.near = day.near + (night.near - day.near) * k;
-    scene.fog.far = day.far + (night.far - day.far) * k;
-    sun.intensity = day.sun + (night.sun - day.sun) * k;
-    sun.color.copy(day.sunColor).lerp(night.sunColor, k);
-    if (hemi) {
-      hemi.intensity = day.hemi + (night.hemi - day.hemi) * k;
-      hemi.color.copy(day.sky).lerp(night.sky, k);
-      hemi.groundColor.copy(day.ground).lerp(night.ground, k);
+  // Пятно света: радиальный градиент, аддитивно, общий для фонарей и фар.
+  const glowTex = (() => {
+    const e = canvasTex(64, 64);
+    const gr = e.g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.45, 'rgba(255,255,255,0.45)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    e.g.fillStyle = gr; e.g.fillRect(0, 0, 64, 64);
+    e.t.magFilter = THREE.LinearFilter;
+    return e.t;
+  })();
+  const poolMat = (color) => new THREE.MeshBasicMaterial({
+    map: glowTex, color, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false,
+    polygonOffset: true, polygonOffsetFactor: -4,
+  });
+
+  // Фонари вдоль дорог: инстансы столбов и плафонов + пятна света на асфальте. Без PointLight.
+  const lampSpots = [];
+  for (let i = 0; i <= N; i++) {
+    for (let seg = 0; seg < N; seg++) {
+      const t0 = roadCoord(seg) + ROAD / 2, mid = t0 + BLOCK / 2;
+      for (const [along, side] of [[t0 + 8, -1], [mid + 6, 1], [t0 + BLOCK - 8, -1]]) {
+        const c = roadCoord(i) + side * (ROAD / 2 - 0.6);
+        lampSpots.push([c, along, side, true], [along, c, side, false]);
+      }
     }
-    for (const g of glass) g.m.emissiveIntensity = g.base + (2.6 - g.base) * k;
-    rain.visible = k > 0.02;
-    rainMat.opacity = 0.75 * k;
+  }
+  const lampN = lampSpots.length;
+  const poleMat = new THREE.MeshStandardMaterial({ color: 0x3a3c44, metalness: 0.5, roughness: 0.5 });
+  const lampHeadMat = new THREE.MeshBasicMaterial({ color: 0x8a8a80 });
+  const poles = new THREE.InstancedMesh(box, poleMat, lampN);
+  const heads = new THREE.InstancedMesh(box, lampHeadMat, lampN);
+  const pools = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), poolMat(0xffc98a), lampN);
+  const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), S = new THREE.Vector3(), P = new THREE.Vector3();
+  lampSpots.forEach(([x, z, side, vertical], k) => {
+    // vertical: дорога вдоль Z (фонарь сбоку по X), иначе вдоль X.
+    const ox = vertical ? -side : 0, oz = vertical ? 0 : -side; // плафон нависает над дорогой
+    poles.setMatrixAt(k, M.compose(P.set(x, 3.6, z), Q, S.set(0.25, 7.2, 0.25)));
+    heads.setMatrixAt(k, M.compose(P.set(x + ox * 0.9, 7.1, z + oz * 0.9), Q, S.set(vertical ? 1.6 : 0.5, 0.25, vertical ? 0.5 : 1.6)));
+    pools.setMatrixAt(k, M.compose(P.set(x + ox * 2.2, 0.06, z + oz * 2.2), Q, S.set(11, 1, 11)));
+  });
+  poles.castShadow = true;
+  pools.renderOrder = 1;
+  scene.add(poles, heads, pools);
+
+  // Фары: пятно-конус перед каждой машиной (вешаем лениво — машины появляются по ходу игры).
+  const beamMat = poolMat(0xfff2c8);
+  const beamGeo = new THREE.PlaneGeometry(4.5, 11).rotateX(-Math.PI / 2);
+  function fitHeadlights() {
+    const meshes = [...(cars || []).map((c) => c.mesh), ...(traffic?.cars || []).map((c) => c.mesh)];
+    for (const m of meshes) {
+      if (!m || m.userData.beam) continue;
+      const b = new THREE.Mesh(beamGeo, beamMat);
+      b.position.set(0, 0.07, 7.5);
+      b.renderOrder = 1;
+      m.add(b);
+      m.userData.beam = b;
+    }
+  }
+
+  // Персонажи и машины (материалы с RETRO_SNAP) ночью чуть светятся своим цветом — силуэты читаются.
+  const rimMats = new Set();
+  function collectRim() {
+    scene.traverse((o) => {
+      const m = o.material;
+      if (!o.isMesh || !m || Array.isArray(m) || !m.isMeshStandardMaterial || !m.defines || !('RETRO_SNAP' in m.defines) || rimMats.has(m)) return;
+      m.emissive.copy(m.color).lerp(new THREE.Color(0x8fa8ff), 0.5);
+      m.emissiveIntensity = 0;
+      rimMats.add(m);
+    });
+  }
+  // Подсветка вокруг игрока/камеры ночью: один PointLight (создан сразу, чтобы не пересобирать шейдеры).
+  const fill = new THREE.PointLight(0xa8b4ff, 0, 30, 1.2);
+  scene.add(fill);
+
+  function applyLight(s, n) {
+    const P_ = PRESETS;
+    cur.sky.forEach((c, i) => c.set(P_.day.sky[i]).lerp(tmp2.set(P_.sunset.sky[i]), s).lerp(tmp.set(P_.night.sky[i]), n));
+    const skyKey = cur.sky.map((c) => c.getHexString()).join();
+    if (skyKey !== lastSky) {
+      lastSky = skyKey;
+      const g = skyCanvas.getContext('2d');
+      const grad = g.createLinearGradient(0, 0, 0, 256);
+      cur.sky.forEach((c, i) => grad.addColorStop([0, 0.45, 0.8, 1][i], '#' + c.getHexString()));
+      g.fillStyle = grad; g.fillRect(0, 0, 4, 256);
+      skyTex.needsUpdate = true;
+    }
+    scene.background = skyTex;
+    mix3('fog', s, n, scene.fog.color);
+    scene.fog.near = mix3('near', s, n);
+    scene.fog.far = mix3('far', s, n);
+    sun.intensity = mix3('sun', s, n);
+    mix3('sunColor', s, n, sun.color);
+    if (sun.shadow && 'intensity' in sun.shadow) sun.shadow.intensity = mix3('shadow', s, n);
+    if (hemi) {
+      hemi.intensity = mix3('hemi', s, n);
+      mix3('hsky', s, n, hemi.color);
+      mix3('hground', s, n, hemi.groundColor);
+    }
+    if (renderer) renderer.toneMappingExposure = mix3('exposure', s, n);
+    const v = (k) => { const { day: d, sunset: e, night: g } = P_; return (d.sunOff[k] + (e.sunOff[k] - d.sunOff[k]) * s) * (1 - n) + g.sunOff[k] * n; };
+    cur.sunOff.set(v(0), v(1), v(2));
+    for (const g of glass) g.m.emissiveIntensity = g.base * (0.6 + 0.4 * s) + (2.4 - g.base) * n;
+    // Фонари зажигаются уже в сумерках.
+    const lamps = Math.max(n, s * 0.5);
+    lampHeadMat.color.setRGB(0.55 + 0.45 * lamps, 0.55 + 0.35 * lamps, 0.5 + 0.1 * lamps);
+    pools.material.opacity = 0.55 * lamps;
+    beamMat.opacity = 0.5 * lamps;
+    pools.visible = lamps > 0.01;
+    for (const m of rimMats) m.emissiveIntensity = 0.35 * n;
+    fill.intensity = 14 * n;
+    rain.visible = n > 0.6;
+    rainMat.opacity = 0.7 * Math.max(0, (n - 0.6) / 0.4);
   }
 
   // Шрифт Press Start 2P грузится лениво — перерисуем канвасы, когда он будет готов.
   document.fonts?.load(`16px ${FONT}`, 'АБВ abc').then(() => redraws.forEach((f) => f())).catch(() => {});
 
-  let time = 0, blinkT = 0;
+  let time = 0, blinkT = 0, rimT = 0;
   return {
     hqs, boards, qrBoard, daytime,
     get night() { return daytime.night > 0.5; },
     get nightLevel() { return nk; },
-    // Ночь включается перемоткой игрового времени: 21:00 или назад к закату 18:30.
+    // Ночь включается перемоткой игрового времени: к 22:00 или к следующему дню 13:00.
     setNight(on) { if (on !== this.night) daytime.toggleNight(); },
     toggleNight() { return daytime.toggleNight(); },
+    // Применить свет текущего времени сразу, без плавного перехода (тесты, скриншоты).
+    snapLight() { nk = -1; sk = -1; },
     news(text) { pushNews(text); },
     get headlines() { return news; },
     update(dt) {
@@ -522,13 +631,15 @@ export function initNeon({ scene, districts, sun, camera, hud, state }) {
           u.glitch.value = Math.max(0, b.glitchT) / 0.45 * 2;
         } else u.glitch.value = Math.random() < 0.01 ? 0.6 : 0;
       }
-      // Ночь: плавный переход и дождь.
-      // Уровень ночи следует за игровым временем; перемотка (N) догоняется плавно, ~1,5 с.
-      const target = daytime.night;
-      if (Math.abs(nk - target) > 1e-4) {
-        nk = Math.abs(target - nk) < dt * 0.7 ? target : nk + Math.sign(target - nk) * dt * 0.7;
-        applyNight(nk);
-      }
+      // Свет следует за игровым временем; перемотка (N) догоняется плавно, ~1,5 с.
+      const tn = daytime.night, ts = daytime.sunset, step = dt * 0.7;
+      const ease = (v, t) => (v < 0 || Math.abs(t - v) <= step ? t : v + Math.sign(t - v) * step);
+      const nn = ease(nk, tn), ss = ease(sk, ts);
+      rimT -= dt;
+      if (rimT <= 0) { rimT = 1; collectRim(); fitHeadlights(); }
+      if (nn !== nk || ss !== sk) { nk = nn; sk = ss; applyLight(sk, nk); }
+      sun.position.copy(sun.target.position).add(cur.sunOff);
+      fill.position.set(camera.position.x, camera.position.y + 2, camera.position.z);
       if (rain.visible) {
         rain.position.set(camera.position.x, camera.position.y, camera.position.z);
         for (let i = 0; i < DROPS; i++) {

@@ -141,7 +141,7 @@ war.squads = new Squads({ scene, war, enemies, graffiti, hud, fx, colliders });
 // --- Ввод ---
 const input = { up: false, down: false, left: false, right: false, brake: false, run: false, fire: false };
 // [v3-neon] begin
-const neon = initNeon({ scene, districts, sun, camera, hud, state });
+const neon = initNeon({ scene, districts, sun, camera, hud, state, renderer, cars, traffic });
 const pause = initPauseMenu({ state, districts, war, graffiti, colliders, input, neon, canvas, actor: () => vehicle || player });
 // [v3-neon] end
 const KEYS = {

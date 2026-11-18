@@ -45,7 +45,8 @@ export class RetroPass {
           #include <colorspace_fragment>
           ivec2 p = ivec2(mod(gl_FragCoord.xy, 4.0));
           // Мягкий дизеринг: 6 бит на канал, половинная амплитуда.
-          float d = (bayer[p.y * 4 + p.x] / 16.0 - 0.5) / 63.0 * 0.6;
+          // Порог симметричен вокруг нуля — дизеринг не смещает картинку в тёмное.
+          float d = ((bayer[p.y * 4 + p.x] + 0.5) / 16.0 - 0.5) / 63.0 * 0.6;
           gl_FragColor.rgb = floor((gl_FragColor.rgb + d) * 63.0 + 0.5) / 63.0;
         }`,
       depthTest: false,
