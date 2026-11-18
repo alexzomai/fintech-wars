@@ -136,8 +136,8 @@ const tag = await g(() => {
   return { x: t.pos.x, z: t.pos.z, total: c.graffiti.inDistrict(t.d).length };
 });
 check(tag.total >= 4, `в районе есть теги конкурента (${tag.total})`);
-await page.keyboard.press('Digit2');
-check(await g(() => window.__game.weapon === 'spray'), 'баллончик выбирается клавишей 2');
+await page.keyboard.press('Digit5');
+check(await g(() => window.__game.weapon === 'spray'), 'баллончик выбирается клавишей 5');
 await aimAt(tag.x, 2.6, tag.z);
 await page.mouse.down();
 await page.waitForTimeout(1000);
@@ -176,8 +176,8 @@ for (let i = 0; i < 80; i++) {
 }
 const owner = await g(() => window.__game.districts[1].owner);
 check(owner === 'green' && waves === 3, `3 волны → район перекрашен (владелец ${owner}, волн ${waves})`);
-const score = await g(() => document.getElementById('scoreG').textContent);
-check(score === '3', `счёт районов обновился (🟢 ${score})`);
+const score = await g(() => window.__game.war.count('green'));
+check(score === 3, `счёт районов обновился (🟢 ${score})`);
 await page.waitForTimeout(600);
 await shot('4-captured');
 
@@ -205,7 +205,7 @@ check(hj.inCar && hj.n === t0 - 1, 'угон машины из трафика');
 // Контратака.
 await g(() => { window.__game.war.counterT = 0.01; });
 await page.waitForTimeout(400);
-const ca = await g(() => ({ c: !!window.__game.war.counter, alert: document.getElementById('alert').textContent }));
+const ca = await g(() => ({ c: !!window.__game.war.counter, alert: document.getElementById('subtitle').textContent }));
 check(ca.c, `контратака на зелёный район («${ca.alert}»)`);
 await shot('5-counter');
 

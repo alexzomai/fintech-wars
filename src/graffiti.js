@@ -4,7 +4,7 @@ import { BANKS } from './city.js';
 // Граффити-теги банков на стенах. Баллончиком (ЛКМ, ~2 с) чужой тег перекрашивается в наш.
 // Теги следуют за сменой владельца района (захват, контратака, ИИ-война).
 
-const TAG_W = 4.2, TAG_H = 2.1, SPRAY_TIME = 2, SPRAY_RANGE = 5;
+const TAG_W = 4.2, TAG_H = 2.1, SPRAY_TIME = 2, SPRAY_RANGE = 6;
 
 // Процедурный тег (фолбэк, пока нет PNG от художника).
 function drawTag(bank) {
@@ -117,7 +117,7 @@ export class Graffiti {
     }
     if (best) return best;
     // Помощь прицеливанию: в третьем лице точно навестись на стену вплотную трудно,
-    // поэтому берём ближайший чужой тег перед камерой (конус ±50°), повёрнутый к игроку.
+    // поэтому берём ближайший чужой тег перед камерой (конус ±75°), повёрнутый к игроку.
     const flat = new THREE.Vector3(dir.x, 0, dir.z).normalize();
     let bestD = Infinity;
     for (const t of this.tags) {
@@ -126,7 +126,7 @@ export class Graffiti {
       const d = to.length();
       if (d > SPRAY_RANGE || d < 1e-3) continue;
       if (to.dot(t.normal) > 0) continue; // стоим за стеной
-      if (to.normalize().dot(flat) < Math.cos((50 * Math.PI) / 180)) continue;
+      if (to.normalize().dot(flat) < Math.cos((75 * Math.PI) / 180)) continue;
       if (d < bestD) { bestD = d; best = { tag: t, k: d, point: t.pos.clone() }; }
     }
     return best;

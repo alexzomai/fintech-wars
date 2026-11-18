@@ -9,6 +9,9 @@ import { Enemies } from './enemies.js';
 import { War } from './war.js';
 import { Fx } from './fx.js';
 import { Hud } from './hud.js';
+// [v3-weapons] begin
+import { Arsenal } from './weapons.js';
+// [v3-weapons] end
 import { RetroPass, RENDER_SCALE } from './retro.js';
 // [v3-jury] begin
 import { openTagEditor, savedTagCanvas } from './tageditor.js';
@@ -117,32 +120,42 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyF') toggleCar();
   if (e.code === 'Space' && !vehicle) player.jump();
   if ((e.code === 'ControlLeft' || e.code === 'ControlRight') && !vehicle) { e.preventDefault(); player.roll(); }
-  if (e.code === 'Digit1') setWeapon('pistol');
-  if (e.code === 'Digit2') setWeapon('spray');
+  // [v3-weapons] begin
+  if (/^Digit[1-9]$/.test(e.code)) arsenal.selectSlot(+e.code.slice(5));
+  if (e.code === 'KeyQ') arsenal.cycle(-1);
+  if (e.code === 'KeyE') arsenal.cycle(1);
   if (e.code === 'KeyR') throwGrenade();
+  // [v3-weapons] end
 });
 addEventListener('keyup', (e) => { if (KEYS[e.code]) input[KEYS[e.code]] = false; });
+// [v3-weapons] begin — Tab: колесо оружия с замедлением времени
+addEventListener('keydown', (e) => {
+  if (e.code !== 'Tab') return;
+  e.preventDefault();
+  if (state.mode === 'play' && !e.repeat) arsenal.openWheel();
+});
+addEventListener('keyup', (e) => { if (e.code === 'Tab') { e.preventDefault(); arsenal.closeWheel(); } });
+addEventListener('blur', () => arsenal.closeWheel());
+addEventListener('mousemove', (e) => { if (document.pointerLockElement === canvas) arsenal.wheelMove(e.movementX, e.movementY); });
+// [v3-weapons] end
 addEventListener('mousedown', (e) => { if (e.button === 0) input.fire = true; });
 addEventListener('mouseup', (e) => { if (e.button === 0) input.fire = false; });
 canvas.addEventListener('click', () => { if (state.mode === 'play' && !document.pointerLockElement) canvas.requestPointerLock?.(); });
 
-addEventListener('wheel', () => { if (state.mode === 'play') setWeapon(weapon === 'pistol' ? 'spray' : 'pistol'); });
-
-// Оружие: пистолет и баллончик.
-let weapon = 'pistol';
-function setWeapon(w) {
-  weapon = w;
-  hud.setWeapon(w);
-}
+// [v3-weapons] begin — оружие живёт в src/weapons.js
+addEventListener('wheel', (e) => { if (state.mode === 'play' && !arsenal.wheel) arsenal.cycle(e.deltaY > 0 ? 1 : -1); });
+function setWeapon(w) { arsenal.select(w, true); }
+// [v3-weapons] end
 
 let camYaw = 0, camPitch = 0.05;
 addEventListener('mousemove', (e) => {
-  if (document.pointerLockElement !== canvas) return;
+  if (document.pointerLockElement !== canvas || arsenal.wheel) return; // [v3-weapons] колесо забирает мышь
   camYaw -= e.movementX * 0.0025;
   camPitch = Math.max(-0.7, Math.min(0.6, camPitch - e.movementY * 0.0025));
 });
 
 // --- Машины ---
+const CAR_NAMES = ['Ипотека Седан', 'Микрозайм GT', 'Инкассатор', 'Кэшбэк Такси']; // [v3-weapons]
 function toggleCar() {
   if (vehicle) {
     if (Math.abs(vehicle.speed) > 6) return hud.toast('Сбрось скорость');
@@ -172,42 +185,7 @@ function toggleCar() {
   if (!best) return hud.toast('Подойди к машине');
   vehicle = best;
   player.mesh.visible = false;
-}
-
-// --- Стрельба ---
-let fireCd = 0;
-const camDir = new THREE.Vector3();
-function shoot() {
-  fireCd = 0.2;
-  player.h.recoil = 1;
-  camera.getWorldDirection(camDir);
-  const o = camera.position.clone();
-  const wallT = rayBoxes(o, camDir, colliders, 150);
-  const hit = enemies.raycast(o, camDir, wallT);
-  const end = o.clone().addScaledVector(camDir, hit ? hit.t : Math.min(wallT, 150));
-  const right = new THREE.Vector3(-Math.cos(player.heading), 0, Math.sin(player.heading));
-  const muzzle = player.position.clone().add(new THREE.Vector3(0, 1.6, 0)).addScaledVector(right, 0.45)
-    .add(new THREE.Vector3(Math.sin(player.heading), 0, Math.cos(player.heading)).multiplyScalar(0.8));
-  fx.tracer(muzzle, end, 0xb8ffc8);
-  fx.spark(muzzle, 0xfff0a0, 0.15);
-  if (hit) {
-    fx.spark(end, hit.head ? 0xff4040 : 0xffd27a);
-    if (enemies.damage(hit.e, hit.head ? 50 : 25)) onKill(hit.e);
-  }
-}
-
-function sprayPaint(dt) {
-  camera.getWorldDirection(camDir);
-  const muzzle = player.position.clone().add(new THREE.Vector3(Math.sin(player.heading) * 0.8, 1.6, Math.cos(player.heading) * 0.8));
-  const tag = graffiti.spray(dt, camera.position, camDir, player.position, muzzle);
-  if (!tag) return;
-  war.reach += 5;
-  war.addMoney(25);
-  const total = graffiti.inDistrict(tag.d).length, green = graffiti.greenCount(tag.d);
-  const need = Math.ceil(total / 2);
-  hud.toast(green >= need && green - 1 < need
-    ? `Граффити ${green}/${total} · ${BANKS[tag.d.owner].name} заметил вас!`
-    : `Граффити ${green}/${total} · Охваты +5`, BANKS.green.css);
+  hud.showVehicle(best.modelName ||= CAR_NAMES[cars.indexOf(best) % CAR_NAMES.length]); // [v3-weapons]
 }
 
 function onKill(e) {
@@ -215,38 +193,15 @@ function onKill(e) {
   if (e.boss) hud.toast('Региональный директор уволен!', BANKS.green.css);
 }
 
-// --- Граната «Ключевая ставка»: замедляет всех в радиусе ---
-const grenades = [];
-function throwGrenade() {
-  if (vehicle) return;
-  if (war.money < 150) return hud.toast('Нужно $150 на «Ключевую ставку»', '#ff6b6b');
-  war.addMoney(-150);
-  camera.getWorldDirection(camDir);
-  const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(0.3, 0), new THREE.MeshBasicMaterial({ color: 0x7ad7ff }));
-  mesh.position.copy(player.position).setY(1.8);
-  scene.add(mesh);
-  grenades.push({ mesh, vel: new THREE.Vector3(camDir.x * 18, 7 + camDir.y * 12, camDir.z * 18), t: 0 });
-}
-function updateGrenades(dt) {
-  for (const g of [...grenades]) {
-    g.t += dt;
-    g.vel.y -= 20 * dt;
-    g.mesh.position.addScaledVector(g.vel, dt);
-    if (g.mesh.position.y > 0.3 && g.t < 2.5) continue;
-    const at = g.mesh.position.clone().setY(0.5);
-    fx.blast(at, 11);
-    let n = 0;
-    for (const e of enemies.alive()) {
-      if (e.position.distanceTo(at) > 11) continue;
-      n++;
-      e.slowT = 5;
-      if (enemies.damage(e, 35)) onKill(e);
-    }
-    hud.toast(`КЛЮЧЕВАЯ СТАВКА 21%! Замедлено: ${n}`, '#7ad7ff');
-    scene.remove(g.mesh);
-    grenades.splice(grenades.indexOf(g), 1);
-  }
-}
+// [v3-weapons] begin
+const arsenal = new Arsenal({
+  scene, camera, player, enemies, fx, hud, graffiti, war, colliders, state,
+  getVehicle: () => vehicle, onKill: (e) => onKill(e),
+});
+arsenal.movePickupsNear(spawnPoint());
+const shoot = () => arsenal.shoot();
+const throwGrenade = () => arsenal.throwGrenade();
+// [v3-weapons] end
 
 // --- Урон, смерть, финал ---
 function hurt(dmg) {
@@ -304,7 +259,7 @@ document.getElementById('play').addEventListener('click', () => {
   document.getElementById('start').classList.add('hidden');
   state.mode = 'play';
   canvas.requestPointerLock?.();
-  hud.alert('Перекрась граффити конкурентов!', BANKS.green.css);
+  hud.subtitle(`Перекрась <b style="color:${BANKS.red.css}">граффити конкурентов</b> и забери <b style="color:${BANKS.green.css}">их районы</b>`); // [v3-weapons]
   setWeapon('pistol');
 });
 document.getElementById('again').addEventListener('click', () => location.reload());
@@ -372,7 +327,7 @@ function step(dt) {
     }
     stunts.update(dt, vehicle, () => { war.reach += 15; war.addMoney(200); });
   } else {
-    player.update(dt, input, camYaw, colliders, cars, { aiming: input.fire && weapon === 'pistol', spraying: input.fire && weapon === 'spray', aimPitch: camPitch });
+    player.update(dt, input, camYaw, colliders, cars, { aiming: input.fire && ['pistol', 'smg'].includes(arsenal.current), spraying: input.fire && arsenal.current === 'spray', aimPitch: camPitch });
     traffic.collide(player);
     for (const c of cars) {
       _v.subVectors(player.position, c.position).setY(0);
@@ -380,11 +335,8 @@ function step(dt) {
       // На крыше/капоте машины не выталкиваемся.
       if (d < 2.3 && d > 1e-3 && player.position.y < c.position.y + 1.1) player.position.addScaledVector(_v.normalize(), 2.3 - d);
     }
-    fireCd -= dt;
-    if (input.fire && weapon === 'pistol' && fireCd <= 0) shoot();
-    if (input.fire && weapon === 'spray') sprayPaint(dt);
-    else graffiti.current = null;
   }
+  arsenal.update(dt, input.fire); // [v3-weapons]
   for (const c of cars) if (c !== vehicle) c.update(dt, null, colliders);
 
   const actor = vehicle || player;
@@ -392,23 +344,21 @@ function step(dt) {
   const here = districtAt(districts, actor.position);
   if (here && here !== state.district) {
     state.district = here;
-    hud.toast(`${here.name} · ${BANKS[here.owner].name}`, BANKS[here.owner].css);
+    hud.showDistrict(here.name, BANKS[here.owner].css); // [v3-weapons] название района справа внизу
   }
   traffic.update(dt, [...cars, ...(vehicle ? [] : [player]), ...traffic.cars]);
   enemies.update(dt, { target: actor.position, targetAlive: true, colliders, hurt });
-  updateGrenades(dt);
   war.update(dt, actor.position, true);
 
   hud.setHp(player.hp, player.maxHp);
   hud.setSpeed(vehicle ? vehicle.speed : 0, !!vehicle);
   hud.setCrosshair(!vehicle);
-  hud.setSpray(!vehicle && weapon === 'spray' && graffiti.current ? graffiti.current.progress : null);
+  hud.setSpray(!vehicle && arsenal.current === 'spray' && graffiti.current ? graffiti.current.progress : null);
   hud.setArrow(actor.position, war.target, camYaw);
   const nearCar = !vehicle && (cars.some((c) => c.position.distanceTo(player.position) < 4.5) || traffic.cars.some((c) => c.mesh.position.distanceTo(player.position) < 5));
   hud.setHint(vehicle ? 'WASD — ехать · Пробел — ручник · F — выйти'
     : nearCar ? 'F — сесть / угнать'
-    : weapon === 'spray' ? 'ЛКМ на чужом граффити — перекрасить · 1 — пистолет'
-    : 'ЛКМ — огонь · 2 — баллончик · R — «Ключевая ставка» ($150)');
+    : arsenal.hint()); // [v3-weapons]
 }
 
 function updateZones(t) {
@@ -430,7 +380,7 @@ const clock = new THREE.Clock();
 let mapTimer = 0, elapsed = 0;
 updateCamera(0, true);
 function frame() {
-  const dt = Math.min(clock.getDelta(), 0.05) * (state.timeScale ?? 1);
+  const dt = Math.min(clock.getDelta(), 0.05) * (state.timeScale ?? 1); // [v3-weapons] замедление колеса
   elapsed += dt;
   if (state.mode === 'play') step(dt);
   else if (state.mode === 'dead') {
@@ -453,7 +403,8 @@ frame();
 // Хук для автотестов и отладки.
 window.__game = {
   colliders, districts, enemies, traffic, war, player, cars, input, state, hurt, fx, graffiti, stunts,
-  get weapon() { return weapon; },
+  get weapon() { return arsenal.current; },
+  arsenal, hud, // [v3-weapons]
   get vehicle() { return vehicle; },
   get camYaw() { return camYaw; },
   aim(yaw, pitch = 0) { camYaw = yaw; camPitch = pitch; },

@@ -5,31 +5,36 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Финтех-войны</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏦</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Russo+One&display=swap" />
   <link rel="stylesheet" href="/src/style.css" />
 </head>
 <body>
   <canvas id="game"></canvas>
   <div id="hud">
-    <div id="score">
-      <span class="g">🟢 <b id="scoreG">2</b></span>
-      <span class="r">🔴 <b id="scoreR">2</b></span>
-      <span class="y">🟡 <b id="scoreY">2</b></span>
-      <span id="matchTimer">8:00</span>
+    <div id="corner">
+      <div id="nums">
+        <div id="hudClock">18:30</div>
+        <div id="money">$00000000</div>
+        <div id="armor" class="bar"><div id="armorFill"></div></div>
+        <div id="hp" class="bar"><div id="hpFill"></div></div>
+      </div>
+      <div id="weapon">
+        <canvas id="weaponIcon" width="104" height="64"></canvas>
+        <div id="weaponAmmo"></div>
+      </div>
+      <div id="wanted"></div>
     </div>
-    <div id="stats">
-      <div id="money">$0</div>
-      <div id="speed"></div>
-      <div id="weapon"></div>
-    </div>
-    <div id="status"></div>
-    <div id="alert"></div>
-    <div id="arrow">▲</div>
+    <div id="help"></div>
     <div id="crosshair"></div>
     <div id="sprayBar"><div></div></div>
-    <div id="hp"><div id="hpFill"></div><span id="hpText">100</span></div>
+    <div id="reloadBar"><div></div></div>
     <canvas id="minimap" width="200" height="200"></canvas>
+    <div id="subtitle"></div>
+    <div id="names"><div id="zoneName"></div><div id="carName"></div><div id="speed"></div></div>
     <div id="hint"></div>
-    <div id="toast"></div>
+    <div id="passed"><div class="t">ЗАДАНИЕ ВЫПОЛНЕНО!</div><div id="passedReward">$500</div><div class="r">ОХВАТЫ +</div></div>
+    <div id="wheel"><div id="wheelItems"></div><div id="wheelCenter"><div id="wheelName"></div><div class="wheelTip">отпусти Tab</div></div></div>
   </div>
   <div id="damage"></div>
 
@@ -37,7 +42,7 @@
     <h1>ФИНТЕХ-ВОЙНЫ</h1>
     <p class="pitch">«Финтех-рынок — это война за территорию. Мы просто сделали это буквально».</p>
     <p>Ты — пиарщик «Сбережёнки». Перекрашивай граффити <b style="color:#e8423a">Алого Капитала</b> и <b style="color:#f5c518">ЖЁЛТ</b> на наши, начинай рекламные войны и забирай районы Москва-Сити.</p>
-    <p class="keys">WASD — движение · Мышь — камера и прицел · ЛКМ — огонь · 1 — пистолет · 2 — баллончик (держи ЛКМ на чужом граффити) · F — сесть / угнать машину · Shift — бег · Пробел — ручник · R — граната «Ключевая ставка» ($150)</p>
+    <p class="keys">WASD — движение · Мышь — камера и прицел · ЛКМ — огонь / удар · Q / E или колесо мыши — листать оружие · 1–5 — кулаки, пистолет, автомат, граната, баллончик (держи ЛКМ на чужом граффити) · Tab — колесо оружия · F — сесть / угнать машину · Shift — бег · Пробел — ручник · R — граната «Ключевая ставка» ($150)</p>
     <button id="play">Играть</button>
   </div>
   <div id="dead" class="screen hidden">
