@@ -467,16 +467,6 @@ function step(dt) {
     : arsenal.hint()); // [v3-weapons]
 }
 
-function updateZones(t) {
-  for (const z of zoneMarkers) {
-    const col = BANKS[z.d.owner].color;
-    z.mat.color.set(col);
-    z.ring.material.color.set(col);
-    const active = war.capture?.d === z.d || war.counter?.d === z.d;
-    z.beam.visible = z.d.owner !== 'green' || active;
-    z.mat.opacity = active ? 0.25 + 0.15 * Math.sin(t * 8) : 0.3;
-  }
-}
 
 // [v3-fns] begin
 const fns = new Fns({ scene, traffic, war, hud, input, camera, player, colliders, state, getActor: () => vehicle || player, getVehicle: () => vehicle, getWeapon: () => arsenal.current });
@@ -511,7 +501,6 @@ function frame() {
   fx.update(dt);
   decor.update(dt); // [v3-decor]
   Car.tick(dt); // [v3-cam] горение, взрывы, дым машин
-  updateZones(elapsed);
   updateCamera(dt);
   // [v3-war] begin
   markers.update(state.mode === 'play' ? enemies.alive((e) => e.tag && (e.tag === war.capture?.tag || e.tag === war.counter?.tag)) : [], elapsed, state.mode === 'play' ? war.squads.allies() : []);
