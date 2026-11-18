@@ -98,7 +98,7 @@ export class War {
     setOwner(c.d, 'green');
     this.enemies.alive((e) => e.tag === `guard:${c.d.k}`).forEach((e) => this.enemies.kill(e));
     this.addMoney(300);
-    this.hud.toast(`Район поглощён! −1 ${BANKS[from].name}`, BANKS.green.css);
+    this.hud.toast(`${c.d.name} — наш! −1 ${BANKS[from].name}`, BANKS.green.css);
     this.capture = null;
     this.onCaptured?.(c.d);
   }
@@ -107,7 +107,7 @@ export class War {
     this.capture = { d, wave: 0, waitT: 1.5, tag: `capture:${d.k}` };
     // Охрана района вступает в бой.
     this.enemies.alive((e) => e.tag === `guard:${d.k}`).forEach((e) => { e.aggro = true; e.tag = this.capture.tag; });
-    this.hud.alert(`Поглощение района ${BANKS[d.owner].name}!`, BANKS[d.owner].css);
+    this.hud.alert(`Поглощение: ${d.name}!`, BANKS[d.owner].css);
   }
 
   spawnWave() {

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { buildCity, CELL, BANKS, rayBoxes, resolveCircle } from './city.js';
+import { buildCity, CELL, BANKS, rayBoxes, resolveCircle, districtAt } from './city.js';
 import { Car } from './car.js';
 import { Player } from './player.js';
 import { Traffic } from './traffic.js';
@@ -35,8 +35,8 @@ const scene = new THREE.Scene();
   t.colorSpace = THREE.SRGBColorSpace;
   scene.background = t;
 }
-scene.fog = new THREE.Fog(0xc9786f, 35, 170); // короткая дальность, город тонет в дымке
-const camera = new THREE.PerspectiveCamera(65, 1, 0.3, 260);
+scene.fog = new THREE.Fog(0xc9786f, 45, 330); // город тонет в дымке, силуэты башен Сити видны
+const camera = new THREE.PerspectiveCamera(65, 1, 0.3, 500);
 
 scene.add(new THREE.HemisphereLight(0xffc9a0, 0x3a2a4a, 1.1));
 const sun = new THREE.DirectionalLight(0xffa25a, 3.2);
@@ -256,6 +256,12 @@ document.getElementById('again').addEventListener('click', () => location.reload
 // --- Камера ---
 const camPos = new THREE.Vector3();
 function updateCamera(dt, snap = false) {
+  // Переопределение камеры: катсцены, пролёт на заставке, скриншоты.
+  if (state.camOverride) {
+    camera.position.copy(state.camOverride.pos);
+    camera.lookAt(state.camOverride.look);
+    return;
+  }
   const actor = vehicle || player;
   const p = actor.position;
   if (vehicle) {
@@ -322,6 +328,12 @@ function step(dt) {
   for (const c of cars) if (c !== vehicle) c.update(dt, null, colliders);
 
   const actor = vehicle || player;
+  // Въезд в район: название и владелец.
+  const here = districtAt(districts, actor.position);
+  if (here && here !== state.district) {
+    state.district = here;
+    hud.toast(`${here.name} · ${BANKS[here.owner].name}`, BANKS[here.owner].css);
+  }
   traffic.update(dt, [...cars, ...(vehicle ? [] : [player]), ...traffic.cars]);
   enemies.update(dt, { target: actor.position, targetAlive: true, colliders, hurt });
   updateGrenades(dt);
@@ -377,5 +389,5 @@ window.__game = {
   get vehicle() { return vehicle; },
   get camYaw() { return camYaw; },
   aim(yaw, pitch = 0) { camYaw = yaw; camPitch = pitch; },
-  toggleCar, shoot, throwGrenade, cam: camera,
+  toggleCar, shoot, throwGrenade, cam: camera, renderer,
 };

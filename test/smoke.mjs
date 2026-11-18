@@ -44,7 +44,12 @@ await g(() => { window.__game.state.god = true; }); // тест проверяе
 await page.waitForTimeout(800);
 await shot('1-start');
 
-// Езда.
+// Езда. Трафик рядом со стартом убираем, чтобы случайная NPC-машина не тормозила проверку.
+await g(() => {
+  const c = window.__game, near = (t) => t.mesh.position.distanceTo(c.vehicle.position) < 60;
+  c.traffic.cars.filter(near).forEach((t) => { t.mesh.visible = false; });
+  c.traffic.cars = c.traffic.cars.filter((t) => !near(t));
+});
 await hold('KeyW', 1500);
 const sp = await g(() => window.__game.vehicle.speed);
 check(sp > 6, `машина едет (${(sp * 3.6).toFixed(0)} км/ч)`);
