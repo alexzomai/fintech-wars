@@ -258,6 +258,12 @@ const throwGrenade = () => arsenal.throwGrenade();
 // [v3-audio] begin
 const audio = initAudio({ hud, war, districts, graffiti, input, arsenal, player });
 // [v3-audio] end
+// [v3-cam] begin — контекст для повреждений и взрывов машин (логика в car.js)
+Car.ctx = {
+  scene, fx, enemies, player, cars, state, hurt: (d) => hurt(d), onKill: (e) => onKill(e),
+  getVehicle: () => vehicle, exit: () => { if (vehicle) { vehicle.speed = 0; vehicle.slip = 0; toggleCar(); } },
+};
+// [v3-cam] end
 
 // --- Урон, смерть, финал ---
 function hurt(dmg) {
@@ -326,34 +332,66 @@ document.getElementById('again').addEventListener('click', () => location.reload
 
 // --- Камера ---
 const camPos = new THREE.Vector3();
+// [v3-cam] begin — состояние камеры: сглаженная точка слежения, дистанция, свободный обзор в машине
+const camFollow = new THREE.Vector3(), camLook = new THREE.Vector3(), _cf = new THREE.Vector3(), _cb = new THREE.Vector3();
+let camDist = 7, camMode = null, camYawSet = 0, camFreeT = 0;
+// [v3-cam] end
 function updateCamera(dt, snap = false) {
   // Переопределение камеры: катсцены, пролёт на заставке, скриншоты.
   if (state.camOverride) {
     camera.position.copy(state.camOverride.pos);
     camera.lookAt(state.camOverride.look);
+    camMode = null; // после катсцены — без рывка из старой точки
     return;
   }
   const actor = vehicle || player;
   const p = actor.position;
+  const mode = vehicle ? 'car' : 'foot';
+  if (mode !== camMode) { snap = true; camMode = mode; }
+  if (camFollow.distanceToSquared(p) > 36) snap = true; // телепорт/возрождение — без долгого «полёта» камеры
+  const k = (rate) => (snap ? 1 : 1 - Math.exp(-rate * dt));
   if (vehicle) {
-    const diff = Math.atan2(Math.sin(vehicle.heading - camYaw), Math.cos(vehicle.heading - camYaw));
-    camYaw += snap ? diff : diff * Math.min(1, dt * 4);
-    const dist = 11 + Math.abs(vehicle.speed) * 0.08;
-    const want = new THREE.Vector3(p.x - Math.sin(camYaw) * dist, 4.5, p.z - Math.cos(camYaw) * dist);
-    if (snap) camPos.copy(want); else camPos.lerp(want, Math.min(1, dt * 6));
+    // Мышь сдвинула камеру — даём осмотреться, потом камера снова уходит за корму.
+    if (Math.abs(camYaw - camYawSet) > 1e-4) camFreeT = 1.6;
+    camFreeT -= dt;
+    const sp = Math.abs(vehicle.speed);
+    if (camFreeT <= 0) {
+      // Запаздывание на поворотах: курс камеры догоняет курс машины (на заносе — смотрим по ходу движения).
+      const travel = vehicle.speed > 2 ? vehicle.heading + Math.atan2(-(vehicle.slip || 0), vehicle.speed) * 0.5 : vehicle.heading;
+      const diff = Math.atan2(Math.sin(travel - camYaw), Math.cos(travel - camYaw));
+      camYaw += diff * k(2.6 + sp * 0.04);
+    }
+    camYawSet = camYaw;
+    // Отдаление и подъём на скорости.
+    const dist = 9 + sp * 0.16, height = 3.6 + sp * 0.035;
+    camFollow.lerp(p, k(10));
+    const pivot = _cf.set(camFollow.x, p.y + 1.6, camFollow.z);
+    const want = _cb.set(pivot.x - Math.sin(camYaw) * dist, p.y + height, pivot.z - Math.cos(camYaw) * dist);
+    const dir = want.clone().sub(pivot), len = dir.length();
+    dir.divideScalar(len);
+    const free = Math.min(len, rayBoxes(pivot, dir, colliders, len) - 0.4);
+    camDist = snap ? free : free < camDist ? free : camDist + (free - camDist) * k(3);
+    camPos.copy(pivot).addScaledVector(dir, Math.max(1.5, camDist));
     camera.position.copy(camPos);
-    camera.lookAt(p.x, 1.5, p.z);
+    camLook.set(p.x + Math.sin(vehicle.heading) * 3, p.y + 1.4, p.z + Math.cos(vehicle.heading) * 3);
+    camera.lookAt(camLook);
   } else {
-    // Через плечо: камера на мыши, не залезает в стены.
+    // Пешком (как в SA): дальше и выше, игрок по центру в нижней трети кадра, свободный обзор мышью.
+    // Камера смотрит строго вдоль (camYaw, camPitch) — прицел в центре экрана совпадает с лучом стрельбы.
     const f = new THREE.Vector3(Math.sin(camYaw) * Math.cos(camPitch), Math.sin(camPitch), Math.cos(camYaw) * Math.cos(camPitch));
-    const right = new THREE.Vector3(-Math.cos(camYaw), 0, Math.sin(camYaw));
-    const pivot = p.clone().add(new THREE.Vector3(0, 2.1, 0)).addScaledVector(right, 1.2);
-    const back = f.clone().negate();
-    const dist = Math.max(0.6, Math.min(5.5, rayBoxes(pivot, back, colliders, 5.5) - 0.3));
-    camPos.copy(pivot).addScaledVector(back, dist);
+    camFollow.lerp(p, k(12)); // мягкое следование за игроком
+    const pivot = _cf.copy(camFollow).setY(p.y + 1.3);
+    // Камера поднята над линией взгляда — игрок оказывается ниже центра кадра.
+    const want = _cb.copy(pivot).addScaledVector(f, -7).add(new THREE.Vector3(0, 1.9, 0));
+    const dir = want.clone().sub(pivot), len = dir.length();
+    dir.divideScalar(len);
+    // Не залезаем в стены: луч от игрока к камере, приближаемся сразу, отдаляемся плавно.
+    const free = Math.max(0.6, Math.min(len, rayBoxes(pivot, dir, colliders, len) - 0.3));
+    camDist = snap ? free : free < camDist ? free : camDist + (free - camDist) * k(4);
+    camPos.copy(pivot).addScaledVector(dir, camDist);
     camPos.y = Math.max(0.4, camPos.y);
     camera.position.copy(camPos);
-    camera.lookAt(pivot.clone().addScaledVector(f, 20));
+    camera.lookAt(camLook.copy(camPos).add(f));
   }
   sun.position.set(p.x - 110, 70, p.z + 50);
   sun.target.position.set(p.x, 0, p.z);
@@ -472,6 +510,7 @@ function frame() {
   aircraft.update(dt, input); // [v3-air]
   fx.update(dt);
   decor.update(dt); // [v3-decor]
+  Car.tick(dt); // [v3-cam] горение, взрывы, дым машин
   updateZones(elapsed);
   updateCamera(dt);
   // [v3-war] begin
