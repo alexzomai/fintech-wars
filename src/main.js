@@ -27,6 +27,7 @@ import { RetroPass, RENDER_SCALE } from './retro.js';
 import { openTagEditor, savedTagCanvas } from './tageditor.js';
 import { initCheats } from './cheats.js';
 import { initStory } from './story.js';
+import { Fns } from './fns.js'; // [v3-fns]
 // [v3-jury] end
 // [v3-neon] begin
 import { initNeon } from './neon.js';
@@ -390,6 +391,7 @@ function step(dt) {
     hud.showDistrict(here.name, BANKS[here.owner].css); // [v3-weapons] название района справа внизу
   }
   traffic.update(dt, [...cars, ...(vehicle ? [] : [player]), ...traffic.cars]);
+  fns.update(dt); // [v3-fns]
   enemies.update(dt, { target: actor.position, targetAlive: true, colliders, hurt });
   // [v3-pop] begin
   npcs.update(dt, { center: actor.position, vehicle, traffic: traffic.cars, budget: 80 - enemies.alive().length - allies.count });
@@ -408,6 +410,20 @@ function step(dt) {
     : arsenal.hint()); // [v3-weapons]
 }
 
+function updateZones(t) {
+  for (const z of zoneMarkers) {
+    const col = BANKS[z.d.owner].color;
+    z.mat.color.set(col);
+    z.ring.material.color.set(col);
+    const active = war.capture?.d === z.d || war.counter?.d === z.d;
+    z.beam.visible = z.d.owner !== 'green' || active;
+    z.mat.opacity = active ? 0.25 + 0.15 * Math.sin(t * 8) : 0.3;
+  }
+}
+
+// [v3-fns] begin
+const fns = new Fns({ scene, traffic, war, hud, input, camera, player, colliders, state, getActor: () => vehicle || player, getVehicle: () => vehicle, getWeapon: () => arsenal.current });
+// [v3-fns] end
 // [v3-jury] begin
 jury.cheats = initCheats({ war, player, traffic, hud });
 jury.story = initStory({ renderer, scene, camera, retro, player, hud });
@@ -455,6 +471,7 @@ window.__game = {
   get vehicle() { return vehicle; },
   get camYaw() { return camYaw; },
   aim(yaw, pitch = 0) { camYaw = yaw; camPitch = pitch; },
+  fns, // [v3-fns]
   toggleCar, shoot, throwGrenade, cam: camera, renderer, jury,
   neon, pause, // [v3-neon]
   npcs, allies, // [v3-pop]
