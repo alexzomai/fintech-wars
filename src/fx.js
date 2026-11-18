@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-// Короткоживущие эффекты: трассеры, вспышки, взрыв «Ключевой ставки».
+// Короткоживущие эффекты: трассеры, вспышки, взрыв гранаты «Дефолт».
 export class Fx {
   constructor(scene) {
     this.scene = scene;

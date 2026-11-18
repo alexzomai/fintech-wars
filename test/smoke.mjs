@@ -190,7 +190,7 @@ await page.waitForTimeout(50);
 // Деньги сразу после броска: через пару секунд их маскирует доход с районов.
 const gr = await g(() => window.__game.war.money);
 const blasts = await g(() => new Promise((r) => setTimeout(() => r(window.__game.fx.items.length), 2500)));
-check(m0 >= 150 && gr === m0 - 150, `«Ключевая ставка» (R) стоит $150 ($${m0} → $${gr})`);
+check(m0 >= 150 && gr === m0 - 150, `граната «Дефолт» (R) стоит $150 ($${m0} → $${gr})`);
 
 // Угон машины из трафика.
 const t0 = await g(() => {
