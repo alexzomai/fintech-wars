@@ -1,0 +1,20 @@
+{
+  "name": "turbo-courier",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node test/smoke.mjs"
+  },
+  "type": "module",
+  "dependencies": {
+    "@fontsource/press-start-2p": "^5.1.0",
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.49.1",
+    "vite": "^6.4.6"
+  },
+  "private": true
+}

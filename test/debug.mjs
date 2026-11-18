@@ -1,0 +1,21 @@
+// Скриншот в движении (ручная проверка визуала). node test/debug.mjs [имя]
+import { chromium } from 'playwright-core';
+const name = process.argv[2] || 'motion';
+const browser = await chromium.launch({ executablePath: '/usr/bin/chromium', args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
+page.on('pageerror', (e) => console.log('ERR', String(e)));
+await page.goto(process.env.GAME_URL || 'http://127.0.0.1:5317/');
+await page.waitForFunction(() => window.__game);
+await page.waitForTimeout(1500);
+await page.click('#play');
+await page.evaluate(() => { window.__game.state.god = true; });
+await page.keyboard.down('KeyW');
+await page.waitForTimeout(2000);
+await page.screenshot({ path: `test/out/${name}-a.png` });
+await page.waitForTimeout(150);
+await page.screenshot({ path: `test/out/${name}-b.png` });
+await page.keyboard.up('KeyW');
+await page.evaluate(() => { const g = window.__game; g.vehicle.speed = 0; g.toggleCar(); });
+await page.waitForTimeout(600);
+await page.screenshot({ path: `test/out/${name}-foot.png` });
+await browser.close();

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Финтех-войны</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏦</text></svg>" />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div id="hud">
+    <div id="score">
+      <span class="g">🟢 <b id="scoreG">2</b></span>
+      <span class="r">🔴 <b id="scoreR">2</b></span>
+      <span class="y">🟡 <b id="scoreY">2</b></span>
+      <span id="matchTimer">8:00</span>
+    </div>
+    <div id="stats">
+      <div id="money">$0</div>
+      <div id="speed"></div>
+      <div id="grenades"></div>
+    </div>
+    <div id="status"></div>
+    <div id="alert"></div>
+    <div id="arrow">▲</div>
+    <div id="crosshair"></div>
+    <div id="hp"><div id="hpFill"></div><span id="hpText">100</span></div>
+    <canvas id="minimap" width="200" height="200"></canvas>
+    <div id="hint"></div>
+    <div id="toast"></div>
+  </div>
+  <div id="damage"></div>
+
+  <div id="start" class="screen">
+    <h1>ФИНТЕХ-ВОЙНЫ</h1>
+    <p class="pitch">«Финтех-рынок — это война за территорию. Мы просто сделали это буквально».</p>
+    <p>Перекрась город в <b style="color:#2ecc59">зелёный</b>. Въезжай в районы <b style="color:#e8423a">Алого Капитала</b> и <b style="color:#f5c518">ЖЁЛТ</b>, переживи 3 волны — район твой.</p>
+    <p class="keys">WASD — движение · Мышь — камера и прицел · ЛКМ — огонь · F — сесть / угнать машину · Shift — бег · Пробел — ручник · R — граната «Ключевая ставка» ($150)</p>
+    <button id="play">Играть</button>
+  </div>
+  <div id="dead" class="screen hidden">
+    <h1>ОТЗЫВ ЛИЦЕНЗИИ</h1>
+    <p>Регулятор недоволен. Штраф −10% денег. Восстановление в штабе…</p>
+  </div>
+  <div id="end" class="screen hidden">
+    <h1 id="endTitle"></h1>
+    <p id="endText"></p>
+    <p class="pitch">«Финтех-рынок — это война за территорию. Мы просто сделали это буквально».</p>
+    <button id="again">Ещё раз</button>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

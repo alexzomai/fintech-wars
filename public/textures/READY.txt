@@ -1,0 +1,12 @@
+Финтех-войны — готовые текстуры
+Источник всех изображений — OpenAI ImageGen, сгенерировано для проекта.
+
+asphalt.png — 512x512 — OpenAI ImageGen (a4330b1d-5497-46ef-bdfc-760ef54ab216) — стыки по обеим осям проверены
+sidewalk.png — 512x512 — OpenAI ImageGen (a725761a-d255-4a07-9ff3-a3bcb2a140fb) — стыки по обеим осям проверены
+grass.png — 512x512 — OpenAI ImageGen (1585bf99-3843-494e-8c26-44762916bb31) — стыки по обеим осям проверены
+facade_brick.png — 512x512 — OpenAI ImageGen (8074c09b-7110-4421-a5f4-c2aa1eea7a0b) — стыки по обеим осям проверены
+facade_concrete.png — 512x512 — OpenAI ImageGen (ef08a657-d487-4268-b787-21dd76dac278) — стыки по обеим осям проверены
+facade_glass.png — 512x512 — OpenAI ImageGen (c0f13c9d-4c01-4a63-a508-242da9d4674d) — стыки по обеим осям проверены
+billboard_green.png — 1024x512 — OpenAI ImageGen (5a4e2860-b1b3-4627-98d0-98bc49a537f3) — название и слоган сверены визуально
+billboard_red.png — 1024x512 — OpenAI ImageGen (fc17a335-9ad2-4361-be48-03bc461e68e1) — название и слоган сверены визуально
+billboard_yellow.png — 1024x512 — OpenAI ImageGen (e0978843-85f0-441f-829a-cd1a444274fa) — название и слоган сверены визуально
