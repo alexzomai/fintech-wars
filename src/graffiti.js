@@ -105,6 +105,20 @@ export class Graffiti {
       if (Math.abs(hit.dot(right)) > TAG_W / 2 + 0.4 || Math.abs(hit.y) > TAG_H / 2 + 0.4) continue;
       if (!best || k < best.k) best = { tag: t, k, point: o.clone().addScaledVector(dir, k) };
     }
+    if (best) return best;
+    // Помощь прицеливанию: в третьем лице точно навестись на стену вплотную трудно,
+    // поэтому берём ближайший чужой тег перед камерой (конус ±50°), повёрнутый к игроку.
+    const flat = new THREE.Vector3(dir.x, 0, dir.z).normalize();
+    let bestD = Infinity;
+    for (const t of this.tags) {
+      if (t.owner === 'green') continue;
+      const to = new THREE.Vector3(t.pos.x - playerPos.x, 0, t.pos.z - playerPos.z);
+      const d = to.length();
+      if (d > SPRAY_RANGE || d < 1e-3) continue;
+      if (to.dot(t.normal) > 0) continue; // стоим за стеной
+      if (to.normalize().dot(flat) < Math.cos((50 * Math.PI) / 180)) continue;
+      if (d < bestD) { bestD = d; best = { tag: t, k: d, point: t.pos.clone() }; }
+    }
     return best;
   }
 

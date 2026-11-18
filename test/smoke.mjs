@@ -64,6 +64,29 @@ await hold('KeyW', 800);
 const w1 = await g(() => ({ ...window.__game.player.position }));
 check(Math.hypot(w1.x - w0.x, w1.z - w0.z) > 1, 'персонаж ходит');
 
+// Прыжок пешком: игрок отрывается от земли и приземляется.
+await page.keyboard.press('Space');
+await page.waitForTimeout(150);
+const jy = await g(() => window.__game.player.position.y);
+check(jy > 0.5, `прыжок на Пробел (высота ${jy.toFixed(2)} м)`);
+await page.waitForTimeout(900);
+check(await g(() => window.__game.player.grounded), 'приземление после прыжка');
+// Запрыгнуть на крышу машины.
+const roof = await g(() => new Promise((resolve) => {
+  const c = window.__game, car = c.cars[0], p = c.player;
+  p.position.set(car.position.x, 2.6, car.position.z - 0.3);
+  p.grounded = false; p.vy = 0;
+  setTimeout(() => resolve(p.position.y), 700);
+}));
+check(roof > 1.7, `стоит на крыше машины (y = ${roof.toFixed(2)})`);
+// Перекат.
+await g(() => { const p = window.__game.player; p.position.x += 4; p.position.y = 0; p.grounded = false; });
+await page.waitForTimeout(500);
+await page.keyboard.press('ControlLeft');
+await page.waitForTimeout(100);
+check(await g(() => window.__game.player.rolling), 'перекат на Ctrl');
+await page.waitForTimeout(700);
+
 // Стрельба: ставим бойца в 10 м впереди и стреляем.
 const target = await g(() => {
   const c = window.__game, p = c.player.position, y = c.camYaw;

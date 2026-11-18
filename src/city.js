@@ -285,9 +285,11 @@ export function roadPointNear(center, minR, maxR) {
   return center.clone().add(new THREE.Vector3(minR, 0, 0));
 }
 
-export function resolveCircle(pos, r, colliders) {
+// y — высота ступней: препятствия ниже неё не мешают (запрыгнул сверху).
+export function resolveCircle(pos, r, colliders, y = 0) {
   let hit = false;
   for (const c of colliders) {
+    if (c.maxY <= y + 0.2) continue;
     const px = Math.max(c.minX, Math.min(pos.x, c.maxX));
     const pz = Math.max(c.minZ, Math.min(pos.z, c.maxZ));
     const dx = pos.x - px, dz = pos.z - pz;
@@ -373,4 +375,23 @@ function buildSurroundings(scene, edge, rand) {
       add(new THREE.MeshStandardMaterial({ color: c }), tx + lane, 8.4, z, 2, 1.4, 4.2);
     }
   }
+}
+
+// Высота опоры под точкой: асфальт 0, тротуар кварталов 0.25, капот 1.2 и крыша машины 1.85.
+export function groundAt(x, z, cars = []) {
+  let h = 0;
+  const lx = x + HALF, lz = z + HALF;
+  if (lx > 0 && lz > 0 && lx < N * CELL && lz < N * CELL) {
+    const bx = lx % CELL, bz = lz % CELL;
+    if (bx > ROAD / 2 && bx < ROAD / 2 + BLOCK && bz > ROAD / 2 && bz < ROAD / 2 + BLOCK) h = 0.25;
+  }
+  for (const c of cars) {
+    const p = c.position, a = c.heading;
+    const dx = x - p.x, dz = z - p.z;
+    // В локальных координатах машины: вперёд +Z.
+    const fx = dx * Math.cos(a) - dz * Math.sin(a), fz = dx * Math.sin(a) + dz * Math.cos(a);
+    if (Math.abs(fx) < 0.95 && fz > -1.4 && fz < 0.8) h = Math.max(h, p.y + 1.85);
+    else if (Math.abs(fx) < 1.1 && Math.abs(fz) < 2.2) h = Math.max(h, p.y + 1.2);
+  }
+  return h;
 }

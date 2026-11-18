@@ -14,7 +14,7 @@ export class Enemies {
   }
 
   spawn(pos, bank, { tag = null, aggro = false, boss = false } = {}) {
-    const h = makeHuman({ accent: BANKS[bank].color, suit: boss ? 0x111111 : 0x2a2d34, scale: boss ? 1.35 : 1 });
+    const h = makeHuman({ accent: BANKS[bank].color, jacket: boss ? 0x111111 : 0x2a2d34, scale: boss ? 1.35 : 1 });
     h.root.position.copy(pos);
     this.scene.add(h.root);
     const hp = boss ? 250 : 40;
@@ -34,6 +34,7 @@ export class Enemies {
     if (e.dead) return false;
     e.hp -= dmg;
     e.aggro = true;
+    e.h.hitT = 1; // откидывание корпуса
     if (e.hp <= 0) { this.kill(e); return true; }
     return false;
   }
@@ -75,12 +76,14 @@ export class Enemies {
       if (e.dead) {
         e.deadT += dt;
         // Падает на спину; после «полёта» от тарана — отлетает.
-        e.h.root.rotation.x = Math.max(-Math.PI / 2, -e.deadT * 6);
+        // Падение с инерцией: разгоняется, обмякшие руки и ноги.
+        e.h.root.rotation.x = Math.max(-Math.PI / 2, -e.deadT * e.deadT * 14);
+        animateHuman(e.h, dt, { speed: 0, crouch: Math.min(1, e.deadT * 2) });
         if (e.fling) { e.position.addScaledVector(e.fling, dt * Math.max(0, 1 - e.deadT * 2)); }
         if (e.deadT > 4) this.remove(e);
         continue;
       }
-      if (e.frozen) { animateHuman(e.h, dt, 0, false); continue; } // для тестов и катсцен
+      if (e.frozen) { animateHuman(e.h, dt, { speed: 0 }); continue; } // для тестов и катсцен
       const slow = e.slowT > 0 ? 0.3 : 1;
       e.slowT -= dt;
       _d.subVectors(ctx.target, e.position).setY(0);
@@ -119,7 +122,7 @@ export class Enemies {
         if (dd < r && dd > 1e-4) { e.position.x += (dx / dd) * (r - dd) * 0.5; e.position.z += (dz / dd) * (r - dd) * 0.5; }
       }
       resolveCircle(e.position, e.radius, ctx.colliders);
-      animateHuman(e.h, dt, e.speed, e.aggro);
+      animateHuman(e.h, dt, { speed: e.speed, aiming: e.aggro });
     }
   }
 
@@ -136,6 +139,7 @@ export class Enemies {
     const hit = Math.random() < hitChance;
     const end = hit ? to : to.clone().add(new THREE.Vector3((Math.random() - 0.5) * 3, (Math.random() - 0.3) * 2, (Math.random() - 0.5) * 3));
     this.fx.tracer(from, end, BANKS[e.bank].color);
+    e.h.recoil = 1;
     if (hit) ctx.hurt(e.boss ? 10 : 5 + Math.floor(Math.random() * 4), e);
   }
 }

@@ -108,6 +108,8 @@ addEventListener('keydown', (e) => {
   if (KEYS[e.code]) { input[KEYS[e.code]] = true; e.preventDefault(); }
   if (state.mode !== 'play' || e.repeat) return;
   if (e.code === 'KeyF') toggleCar();
+  if (e.code === 'Space' && !vehicle) player.jump();
+  if ((e.code === 'ControlLeft' || e.code === 'ControlRight') && !vehicle) { e.preventDefault(); player.roll(); }
   if (e.code === 'Digit1') setWeapon('pistol');
   if (e.code === 'Digit2') setWeapon('spray');
   if (e.code === 'KeyR') throwGrenade();
@@ -139,7 +141,10 @@ function toggleCar() {
     if (Math.abs(vehicle.speed) > 6) return hud.toast('Сбрось скорость');
     const left = new THREE.Vector3(Math.cos(vehicle.heading), 0, -Math.sin(vehicle.heading));
     player.position.copy(vehicle.position).addScaledVector(left, 2.4);
+    player.position.y = 0;
     resolveCircle(player.position, player.radius, colliders);
+    player.grounded = false; // упадёт на тротуар/асфальт
+    player.vy = 0;
     player.mesh.visible = true;
     camYaw = vehicle.heading;
     camPitch = 0.05;
@@ -167,6 +172,7 @@ let fireCd = 0;
 const camDir = new THREE.Vector3();
 function shoot() {
   fireCd = 0.2;
+  player.h.recoil = 1;
   camera.getWorldDirection(camDir);
   const o = camera.position.clone();
   const wallT = rayBoxes(o, camDir, colliders, 150);
@@ -238,6 +244,8 @@ function updateGrenades(dt) {
 // --- Урон, смерть, финал ---
 function hurt(dmg) {
   if (state.mode !== 'play' || (state.god && dmg < 900)) return;
+  if (player.rolling && dmg < 900) return; // кувырок — неуязвимость
+  player.h.hitT = 1;
   player.hp -= vehicle ? dmg * 0.5 : dmg;
   hud.flashDamage();
   if (player.hp <= 0) die();
@@ -345,12 +353,13 @@ function step(dt) {
       }
     }
   } else {
-    player.update(dt, input, camYaw, colliders, input.fire);
+    player.update(dt, input, camYaw, colliders, cars, { aiming: input.fire && weapon === 'pistol', spraying: input.fire && weapon === 'spray', aimPitch: camPitch });
     traffic.collide(player);
     for (const c of cars) {
       _v.subVectors(player.position, c.position).setY(0);
       const d = _v.length();
-      if (d < 2.3 && d > 1e-3) player.position.addScaledVector(_v.normalize(), 2.3 - d);
+      // На крыше/капоте машины не выталкиваемся.
+      if (d < 2.3 && d > 1e-3 && player.position.y < c.position.y + 1.1) player.position.addScaledVector(_v.normalize(), 2.3 - d);
     }
     fireCd -= dt;
     if (input.fire && weapon === 'pistol' && fireCd <= 0) shoot();
